@@ -18,6 +18,8 @@ import { ConsoleArt } from "./ConsoleArt";
 import {
   accountIdSchema,
   discoverConsoles,
+  getConsoleRegistration,
+  registrationInput,
   nativePS5Available,
   registerConsole,
   type DiscoveredConsole,
@@ -58,6 +60,43 @@ export function PairingWizard({
     }
   };
   const advance = async () => {
+    if (!valid) {
+      setError(
+        step === 2
+          ? "اختر جهاز PS5 من القائمة أو أدخل عنوان IPv4 صحيحاً."
+          : step === 3
+            ? native
+              ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الصحيح."
+              : "أدخل رقم الإقران المكوّن من 8 أرقام."
+            : step === 4
+              ? "فعّل الخيار أولاً للمتابعة."
+              : "اختر PlayStation PS5 للمتابعة.",
+      );
+      return;
+    }
+    if (step === 2 && native) {
+      setBusy(true);
+      setError("");
+      try {
+        const target = ip.trim();
+        if (!registrationInput.shape.ip.safeParse(target).success)
+          throw new Error("لازم يكون العنوان داخل شبكتك المحلية (192.168.x.x أو 10.x.x.x أو 172.16-31.x.x).");
+        const found = (await discoverConsoles()).consoles.filter((c) => c.type === "PS5");
+        setConsoles(found);
+        if (!found.some((c) => c.ip === target))
+          throw new Error("الجهاز ما استجاب على هذا العنوان. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi.");
+        const existing = await getConsoleRegistration(target).catch(() => null);
+        if (existing?.registered) {
+          setRegistered(true);
+          setStep(4);
+        } else setStep(3);
+      } catch (e) {
+        setError(e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (step === 3 && native) {
       setBusy(true);
       setError("");
@@ -183,8 +222,12 @@ export function PairingWizard({
                 <Button
                   key={console.hostId}
                   variant="outline"
-                  className="h-auto w-full justify-between border-phone-border py-3"
-                  onClick={() => setIp(console.ip)}
+                  className={`h-auto w-full justify-between py-3 ${ip.trim() === console.ip ? "border-phone-primary" : "border-phone-border"}`}
+                  aria-pressed={ip.trim() === console.ip}
+                  onClick={() => {
+                    setIp(console.ip);
+                    setError("");
+                  }}
                 >
                   <span dir="ltr">
                     {console.hostName}
@@ -226,7 +269,7 @@ export function PairingWizard({
           <p className="text-xs text-phone-muted">
             {native
               ? "سيُستخدم العنوان للتسجيل المباشر في الخطوة التالية."
-              : "العنوان يُحفظ على هذا الجهاز فقط؛ ليس اتصالاً بالبلايستيشن."}
+              : "نسخة المتصفح لا تستطيع الاتصال بالبلايستيشن: المتصفحات تمنع البحث في الشبكة المحلية وبروتوكول اللعب عن بُعد. الربط الفعلي يتم من تطبيق MZGTA المثبت على الآيفون أو من PS Remote Play الرسمي."}
           </p>
         </div>
       )}
@@ -343,7 +386,7 @@ export function PairingWizard({
         <Button
           variant="phone"
           className="h-12 w-full"
-          disabled={!valid || busy}
+          disabled={busy}
           onClick={() => void advance()}
         >
           {["التالي", "اتصل", "اربط", "خفيتها", "دخلت"][step - 1]}{" "}
