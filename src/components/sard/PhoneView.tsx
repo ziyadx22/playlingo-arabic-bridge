@@ -24,7 +24,9 @@ import { translateLine } from "@/lib/translate.functions";
 import type { SubMsg } from "@/lib/sync";
 import { PhoneFlow } from "./PhoneFlow";
 import { Switch } from "@/components/ui/switch";
-import { lookupPack, type StarterPack } from "@/lib/phone-storage";
+import { loadGamingDictionary } from "@/lib/gaming-dictionary-storage";
+import { translateHybrid } from "@/lib/smart-offline";
+import { gamingDictionary } from "@/data/gamingDictionary";
 import { changeRoi, type Roi } from "./roi";
 
 function Slider({
@@ -117,7 +119,8 @@ export function PhoneView({
   const translate = useServerFn(translateLine);
   const [active, setActive] = useState(false);
   const [running, setRunning] = useState(false);
-  const [pack, setPack] = useState<StarterPack | null>(null);
+  const [consoleRegistered, setConsoleRegistered] = useState(false);
+  const retryOffline = useRef<{ en: string; speaker: string } | null>(null);
   const [second, setSecond] = useState(false);
   const [editing, setEditing] = useState(true);
   const [roi2, setRoi2] = useState<Roi>({ x: 8, y: 12, w: 84, h: 20 });
@@ -156,17 +159,22 @@ export function PhoneView({
           const line = next;
           queued.current = null;
           const key = line.en.toLowerCase();
-          const saved = lookupPack(pack, line.en) ?? cache.current.get(key);
+          const saved = cache.current.get(key);
           const r = saved
-            ? { ar: saved, error: null }
-            : await translate({ data: { text: line.en } });
-          if (r.error) {
-            setErr(r.error);
-            break;
-          }
+            ? { ar: saved, exact: true, source: "offline" as const, warning: null }
+            : await translateHybrid(
+                line.en,
+                await loadGamingDictionary().catch(() => new Map(Object.entries(gamingDictionary))),
+                navigator.onLine,
+                (text) => translate({ data: { text } }),
+              );
+          if (r.warning) setErr(r.warning);
           if (r.ar) {
-            if (cache.current.size >= 100) cache.current.clear();
-            cache.current.set(key, r.ar);
+            if (r.exact || r.source === "online") {
+              if (cache.current.size >= 100) cache.current.clear();
+              cache.current.set(key, r.ar);
+              retryOffline.current = null;
+            } else retryOffline.current = line;
             lastEn.current = line.en;
             onSub({ en: line.en, ar: r.ar, speaker: line.speaker, id: Date.now() });
           }
@@ -180,8 +188,19 @@ export function PhoneView({
         setBusyT(false);
       }
     },
-    [translate, onSub, pack],
+    [translate, onSub],
   );
+  useEffect(() => {
+    const retry = () => {
+      const pending = retryOffline.current;
+      if (pending) {
+        lastEn.current = "";
+        void handleText(pending.en, pending.speaker);
+      }
+    };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [handleText]);
 
   const speech = useSpeech((t) => void handleText(t, "صوت"));
   const stopCam = useCallback(() => {
@@ -436,7 +455,10 @@ export function PhoneView({
             id: Date.now(),
           })
         }
-        onPack={setPack}
+        onPack={() => {
+          void loadGamingDictionary().catch(() => {});
+        }}
+        onConsoleRegistration={setConsoleRegistered}
         onLiveChange={setActive}
         styleView={styles}
         liveView={(onStyle) => (
@@ -485,7 +507,12 @@ export function PhoneView({
             <div className="flex items-start justify-between gap-2 border-y border-phone-border py-4">
               <div className="space-y-2 text-[11px]">
                 <p className="flex items-center gap-2 text-phone-muted">
-                  <span className="size-1.5 rounded-full bg-phone-muted" /> البلايستيشن غير مربوط
+                  <span
+                    className={`size-1.5 rounded-full ${consoleRegistered ? "bg-phone-primary" : "bg-phone-muted"}`}
+                  />{" "}
+                  {consoleRegistered
+                    ? "البلايستيشن مسجّل · لا يوجد بث نشط"
+                    : "البلايستيشن غير مربوط"}
                 </p>
                 <p
                   className={`flex items-center gap-2 ${paired ? "text-phone-primary" : "text-phone-muted"}`}

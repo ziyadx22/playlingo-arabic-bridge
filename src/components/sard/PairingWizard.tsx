@@ -1,23 +1,89 @@
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ExternalLink, Gamepad2, Monitor, Wifi } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Gamepad2,
+  Loader2,
+  Monitor,
+  RefreshCw,
+  Wifi,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { consoleAddress, pairingPin } from "@/lib/phone-storage";
 import { ConsoleArt } from "./ConsoleArt";
+import {
+  accountIdSchema,
+  discoverConsoles,
+  nativePS5Available,
+  registerConsole,
+  type DiscoveredConsole,
+} from "@/lib/ps5-remote-play";
 
 export function PairingWizard({
   onClose,
   onComplete,
 }: {
   onClose: () => void;
-  onComplete: (ip: string) => void;
+  onComplete: (ip: string, registered: boolean) => void;
 }) {
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState("ps5");
   const [ip, setIp] = useState("");
   const [pin, setPin] = useState("");
   const [hidden, setHidden] = useState(false);
+  const [native, setNative] = useState(false);
+  const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [registered, setRegistered] = useState(false);
+  useEffect(() => {
+    setNative(nativePS5Available());
+  }, []);
+  const scan = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      setConsoles((await discoverConsoles()).consoles.filter((item) => item.type === "PS5"));
+    } catch {
+      setError(
+        "تعذّر البحث. اسمح بالشبكة المحلية، وتأكد من Wi-Fi وصلاحية البث المحلي في النسخة المثبتة. يمكنك إدخال العنوان يدوياً.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const advance = async () => {
+    if (step === 3 && native) {
+      setBusy(true);
+      setError("");
+      try {
+        const result = await registerConsole({ ip: ip.trim(), pin, accountId: accountId.trim() });
+        if (!result.registered) throw new Error("registration-failed");
+        setRegistered(true);
+        setPin("");
+        setAccountId("");
+        setStep(4);
+      } catch {
+        setError(
+          "لم ينجح تسجيل البلايستيشن. تحقق من رقم الإقران الحالي ومعرّف الحساب وإعدادات اللعب عن بُعد والشبكة.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    } else if (step === 5) {
+      setPin("");
+      setAccountId("");
+      onComplete(ip.trim(), registered);
+    } else {
+      setError("");
+      setStep(step + 1);
+    }
+  };
   const titles = [
     "وش نوع جهازك؟",
     "اختر جهازك",
@@ -31,7 +97,8 @@ export function PairingWizard({
       : step === 2
         ? consoleAddress.safeParse(ip).success
         : step === 3
-          ? pairingPin.safeParse(pin).success
+          ? pairingPin.safeParse(pin).success &&
+            (!native || accountIdSchema.safeParse(accountId).success)
           : step === 4
             ? hidden
             : true;
@@ -102,9 +169,45 @@ export function PairingWizard({
           <div className="flex items-center gap-2 text-sm text-phone-primary">
             <Wifi className="size-4" /> نفس شبكة Wi-Fi
           </div>
+          {native && (
+            <>
+              <Button
+                variant="phone"
+                className="w-full"
+                disabled={busy}
+                onClick={() => void scan()}
+              >
+                {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} البحث عن أجهزة PS5
+              </Button>
+              {consoles.map((console) => (
+                <Button
+                  key={console.hostId}
+                  variant="outline"
+                  className="h-auto w-full justify-between border-phone-border py-3"
+                  onClick={() => setIp(console.ip)}
+                >
+                  <span dir="ltr">
+                    {console.hostName}
+                    <br />
+                    <span className="text-xs text-phone-muted">{console.ip}</span>
+                  </span>
+                  <span className="text-xs text-phone-primary">
+                    {console.status === "standby" ? "وضع الراحة" : "جاهز"}
+                  </span>
+                </Button>
+              ))}
+              {!busy && !consoles.length && (
+                <p className="text-xs text-phone-muted">
+                  شغّل PS5 وفعّل اللعب عن بُعد، ثم ابحث أو أدخل العنوان يدوياً.
+                </p>
+              )}
+            </>
+          )}
           <p className="text-sm leading-7 text-phone-muted">
-            المتصفح ما يقدر يبحث عن أجهزة الشبكة. افتح في PS5: الإعدادات ← الشبكة ← حالة الاتصال ←
-            عرض حالة الاتصال، وأدخل عنوان IP.
+            {native
+              ? "لإدخال العنوان يدوياً، افتح في PS5:"
+              : "المتصفح ما يقدر يبحث عن أجهزة الشبكة. افتح في PS5:"}{" "}
+            الإعدادات ← الشبكة ← حالة الاتصال ← عرض حالة الاتصال، وأدخل عنوان IP.
           </p>
           <label className="block text-sm">
             أدخل العنوان
@@ -121,7 +224,9 @@ export function PairingWizard({
           </label>
           {ip && !valid && <p className="text-xs text-destructive">أدخل عنوان IPv4 صحيحاً.</p>}
           <p className="text-xs text-phone-muted">
-            العنوان يُحفظ على هذا الجهاز فقط؛ ليس اتصالاً بالبلايستيشن.
+            {native
+              ? "سيُستخدم العنوان للتسجيل المباشر في الخطوة التالية."
+              : "العنوان يُحفظ على هذا الجهاز فقط؛ ليس اتصالاً بالبلايستيشن."}
           </p>
         </div>
       )}
@@ -146,9 +251,28 @@ export function PairingWizard({
               className="phone-input mt-3 text-center text-2xl"
             />
           </label>
+          {native && (
+            <label className="block text-sm">
+              معرّف حساب PSN (Base64)
+              <input
+                aria-label="معرّف حساب PSN"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                dir="ltr"
+                className="phone-input mt-3"
+              />
+              <span className="mt-2 block text-xs leading-6 text-phone-muted">
+                معرّف الحساب الرقمي المرمّز إلى Base64 (8 بايت)، وليس اسم المستخدم أو كلمة المرور.
+                لا يُحفظ في المتصفح.
+              </span>
+            </label>
+          )}
           <p className="text-sm leading-7 text-phone-muted">
-            أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. MZGTA لا يتصل بالبلايستيشن ولا
-            يرسل هذا الرقم.
+            {native
+              ? "يُرسل الرقم ومعرّف الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
+              : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}
           </p>
           <Button
             asChild
@@ -211,22 +335,24 @@ export function PairingWizard({
         </div>
       )}
       <div className="mt-auto pt-8">
+        {error && (
+          <p role="alert" className="mb-3 text-xs leading-6 text-destructive">
+            {error}
+          </p>
+        )}
         <Button
           variant="phone"
           className="h-12 w-full"
-          disabled={!valid}
-          onClick={() => {
-            if (step === 5) {
-              setPin("");
-              onComplete(ip.trim());
-            } else setStep(step + 1);
-          }}
+          disabled={!valid || busy}
+          onClick={() => void advance()}
         >
           {["التالي", "اتصل", "اربط", "خفيتها", "دخلت"][step - 1]}{" "}
-          {step === 5 ? <Check /> : <ArrowLeft />}
+          {busy ? <Loader2 className="animate-spin" /> : step === 5 ? <Check /> : <ArrowLeft />}
         </Button>
         <p className="mt-3 text-center text-[11px] text-phone-muted">
-          دليل إعداد · الاتصال الفعلي في PS Remote Play
+          {native
+            ? "تسجيل PS5 أصلي · الترجمة بالكاميرا · البث في PS Remote Play"
+            : "دليل إعداد · الاتصال الفعلي في PS Remote Play"}
         </p>
       </div>
     </div>

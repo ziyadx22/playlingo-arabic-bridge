@@ -10,3 +10,9 @@
 - [x] Verify setup validation, storage, mobile layout, and phone-to-TV translation
 - [x] Configure Capacitor and Codemagic iPhone / Android TV packaging
 - [x] Validate native setup scripts and document unsigned iPhone installation limits
+- [x] Expand indexed offline dictionary, phrase/morphology fallback, and online enrichment
+- [x] Wire translation pack download and accurate installed-entry count
+- [x] Add native iOS PS5 discovery and audited registration integration
+- [x] Include GPL-compatible Remote Play source and licensing notices (approved)
+- [x] Validate offline translation, native configuration, protocol crypto, and browser-to-TV flow
+- [ ] Validate Xcode compilation and real PS5/iPhone discovery/registration — requires macOS/iOS SDK, physical hardware and multicast-enabled signing

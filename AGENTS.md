@@ -37,8 +37,11 @@ use the editor.
 - Room pairing uses presence, retried handshakes, and buffered broadcast delivery; replay current TV settings and subtitles on a phone handshake to recover reconnects.
 - PWA metadata and icons live in public/manifest.json and public/icons; the generated /sw.js is registered only by src/lib/pwa.ts, which blocks dev and Lovable preview hosts to prevent stale previews.
 - Keep the phone navigation and setup guide separate from capture/translation controls, so navigation cannot misrepresent console connectivity.
-- Store the validated starter glossary and local session metadata in browser IndexedDB; use exact glossary matches before cloud translation and never persist console pairing PINs.
-- Treat PS5 setup as a guide to the official Remote Play app, not browser discovery or authentication, because the web app has no console protocol connection.
+- Download the independent licensed dictionary into version-keyed IndexedDB batches; expose ready metadata only after all entries commit and lazy-load its lookup map, keeping bulk vocabulary out of startup bundles.
+- Translate exact gaming phrases locally, prefer cloud for composed sentences online, and mark unknown offline tokens explicitly; never claim universal coverage or full Arabic grammar from dictionary substitution.
+- Browser PS5 setup remains an official Remote Play guide; iOS uses the registered Capacitor discovery/Chiaki registration plugin, and registration never implies an active PS5 stream.
+- Never persist console PINs/account IDs in browser storage or expose/log registration keys; save keys only in device-bound iOS Keychain after successful protocol validation.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
 - Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.
 - Generate native projects in CI, apply idempotent platform patches after sync, and keep signing credentials and generated native output out of source deliveries.
+- Compile the pinned registration-only Chiaki source in the iOS App target with Apple crypto primitives; ship license/source notices and require physical-device verification plus multicast-enabled signing for UDP discovery.

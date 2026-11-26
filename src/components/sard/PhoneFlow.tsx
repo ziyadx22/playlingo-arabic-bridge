@@ -24,15 +24,14 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { ConsoleArt } from "./ConsoleArt";
 import { PairingWizard } from "./PairingWizard";
+import { lastSessionSchema, readLocal, saveLocal, type LastSession } from "@/lib/phone-storage";
 import {
-  downloadStarterPack,
-  lastSessionSchema,
-  loadStarterPack,
-  readLocal,
-  saveLocal,
-  type LastSession,
-  type StarterPack,
-} from "@/lib/phone-storage";
+  downloadGamingDictionary,
+  loadDictionarySummary,
+  type DictionarySummary,
+  type DictionaryProgress,
+} from "@/lib/gaming-dictionary-storage";
+import { getConsoleRegistration, nativePS5Available } from "@/lib/ps5-remote-play";
 import type { SubMsg } from "@/lib/sync";
 
 type Tab = "home" | "summary" | "devices" | "account";
@@ -49,6 +48,7 @@ export function PhoneFlow({
   onScan,
   onTest,
   onPack,
+  onConsoleRegistration,
   onLiveChange,
   liveView,
   styleView,
@@ -62,7 +62,8 @@ export function PhoneFlow({
   onRefresh: () => void;
   onScan: () => void;
   onTest: () => void;
-  onPack: (pack: StarterPack) => void;
+  onPack: () => void;
+  onConsoleRegistration: (registered: boolean) => void;
   onLiveChange: (active: boolean) => void;
   liveView: (onStyle: () => void) => ReactNode;
   styleView: ReactNode;
@@ -73,8 +74,9 @@ export function PhoneFlow({
   const [joinOpen, setJoinOpen] = useState(false);
   const [pin, setPin] = useState("");
   const [setupIp, setSetupIp] = useState("");
-  const [pack, setPack] = useState<StarterPack | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
+  const [pack, setPack] = useState<DictionarySummary | null>(null);
+  const [progress, setProgress] = useState<DictionaryProgress | null>(null);
+  const [consoleRegistered, setConsoleRegistered] = useState(false);
   const [packError, setPackError] = useState("");
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -82,20 +84,33 @@ export function PhoneFlow({
   const download = useRef<AbortController | null>(null);
   const packCallback = useRef(onPack);
   packCallback.current = onPack;
+  const registrationCallback = useRef(onConsoleRegistration);
+  registrationCallback.current = onConsoleRegistration;
 
   useEffect(() => {
     let active = true;
-    void loadStarterPack()
+    void loadDictionarySummary()
       .then((saved) => {
         if (active && saved) {
           setPack(saved);
-          packCallback.current(saved);
+          packCallback.current();
         }
       })
       .catch(() => {});
     void readLocal("console-setup")
       .then((saved) => {
-        if (active && typeof saved === "string") setSetupIp(saved);
+        if (active && typeof saved === "string") {
+          setSetupIp(saved);
+          if (nativePS5Available())
+            void getConsoleRegistration(saved)
+              .then((result) => {
+                if (active) {
+                  setConsoleRegistered(result.registered);
+                  registrationCallback.current(result.registered);
+                }
+              })
+              .catch(() => {});
+        }
       })
       .catch(() => {});
     void readLocal("last-session")
@@ -129,9 +144,9 @@ export function PhoneFlow({
     download.current = controller;
     setPackError("");
     try {
-      const saved = await downloadStarterPack(setProgress, controller.signal);
+      const saved = await downloadGamingDictionary(setProgress, controller.signal);
       setPack(saved);
-      onPack(saved);
+      onPack();
     } catch {
       if (!controller.signal.aborted) {
         setPackError("تعذّر التنزيل أو الحفظ. تحقق من الإنترنت ومساحة الجهاز وحاول مجدداً.");
@@ -184,8 +199,10 @@ export function PhoneFlow({
         {screen === "wizard" ? (
           <PairingWizard
             onClose={() => setScreen("tabs")}
-            onComplete={(ip) => {
+            onComplete={(ip, registered) => {
               setSetupIp(ip);
+              setConsoleRegistered(registered);
+              onConsoleRegistration(registered);
               void saveLocal("console-setup", ip).catch(() => setNotice("تعذّر حفظ إعداد الجهاز."));
               setScreen("tabs");
               setTab("home");
@@ -249,16 +266,22 @@ export function PhoneFlow({
                       </p>
                       <h3 className="text-lg font-semibold">البلايستيشن</h3>
                       <p className="mt-2 flex items-center gap-1.5 text-xs text-phone-muted">
-                        <span className="size-1.5 rounded-full bg-phone-muted" /> غير مربوط
+                        <span
+                          className={`size-1.5 rounded-full ${consoleRegistered ? "bg-phone-primary" : "bg-phone-muted"}`}
+                        />{" "}
+                        {consoleRegistered ? "مسجّل على الآيفون" : "غير مربوط"}
                       </p>
                     </div>
                     <ConsoleArt />
                   </div>
                   {setupIp && (
                     <p className="px-5 pb-3 text-[11px] text-phone-muted">
-                      دليل الإعداد مكتمل · <span dir="ltr">{setupIp}</span>
+                      {consoleRegistered ? "تم التسجيل وحفظ المفاتيح بأمان" : "دليل الإعداد مكتمل"}{" "}
+                      · <span dir="ltr">{setupIp}</span>
                       <br />
-                      البث والربط الفعلي في PS Remote Play.
+                      {consoleRegistered
+                        ? "لا يوجد بث PS5 نشط؛ الترجمة بالكاميرا."
+                        : "البث والربط الفعلي في PS Remote Play."}
                     </p>
                   )}
                   <div className="px-5 pb-5">
@@ -430,38 +453,47 @@ export function PhoneFlow({
                     <h3 className="text-sm font-semibold">ترجمات إضافية لجلساتك</h3>
                   </div>
                   <p className="mt-3 text-xs leading-7 text-phone-muted">
-                    حمّل قاموس الألعاب الأساسي مرة واحدة. 16 مصطلحاً وعبارة تُترجم فوراً على جهازك؛
-                    باقي الحوارات تُترجم عبر الإنترنت. حزمة GTA VI خاصة غير متاحة حالياً.
+                    أكثر من 30,000 مدخل عربي–إنجليزي، مع مصطلحات ألعاب وعبارات مختارة. المطابقة
+                    المحلية فورية؛ تحليل العبارات تقريبي وتتحسن الحوارات عبر الإنترنت. ليست حزمة
+                    حوارات رسمية لألعاب GTA أو غيرها.
                   </p>
                   {progress !== null && (
                     <div className="mt-4">
                       <div className="mb-2 flex justify-between text-[11px]">
                         <span>
-                          {progress === 100 ? "تم التنزيل والحفظ" : "جارٍ التنزيل والحفظ…"}
+                          {progress.phase === "ready"
+                            ? "تم التنزيل والحفظ"
+                            : progress.phase === "index"
+                              ? "جارٍ فهرسة الكلمات…"
+                              : "جارٍ التنزيل…"}
                         </span>
                         <span dir="ltr" className="text-phone-primary">
-                          {progress}%
+                          {progress.percent}%
                         </span>
                       </div>
                       <div
                         role="progressbar"
                         aria-label="تنزيل قاموس الألعاب"
-                        aria-valuenow={progress}
+                        aria-valuenow={progress.percent}
                         aria-valuemin={0}
                         aria-valuemax={100}
                         className="h-1.5 overflow-hidden rounded-full bg-phone-border"
                       >
                         <div
                           className="h-full bg-phone-primary"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${progress.percent}%` }}
                         />
                       </div>
+                      <p role="status" className="mt-2 text-xs text-phone-primary">
+                        {progress.indexed.toLocaleString("en-US")} كلمة وعبارة مفهرسة
+                        {progress.total ? ` / ${progress.total.toLocaleString("en-US")}` : ""}
+                      </p>
                     </div>
                   )}
                   <Button
                     variant={pack ? "ghost" : "phone"}
                     className={`mt-4 h-10 w-full ${pack ? "text-phone-primary" : ""}`}
-                    disabled={pack !== null || (progress !== null && progress < 100)}
+                    disabled={pack !== null || (progress !== null && progress.percent < 100)}
                     onClick={() => void getPack()}
                   >
                     {pack ? (
@@ -471,8 +503,25 @@ export function PhoneFlow({
                     ) : (
                       <Download />
                     )}
-                    {pack ? `محفوظ على جهازك · ${pack.entries.length} عبارة` : "تنزيل القاموس"}
+                    {pack
+                      ? `${pack.count.toLocaleString("en-US")} كلمة وعبارة جاهزة ✅`
+                      : "تحميل حزم الترجمة"}
                   </Button>
+                  <p className="mt-3 text-[11px] leading-6 text-phone-muted">
+                    المفردات العامة: FreeDict / Arabeyes ·{" "}
+                    <a
+                      className="underline"
+                      href="/packs/dictionary-COPYING.txt"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      GPL-2.0+
+                    </a>{" "}
+                    ·{" "}
+                    <a className="underline" href="/packs/dictionary-source.tar.xz" download>
+                      مصدر القاموس
+                    </a>
+                  </p>
                   {packError && (
                     <p role="alert" className="mt-3 text-xs text-destructive">
                       {packError}
@@ -564,7 +613,7 @@ export function PhoneFlow({
                 <div className="flex justify-between text-sm">
                   <span>القاموس المحلي</span>
                   <span className="text-phone-muted">
-                    {pack ? `${pack.entries.length} عبارة` : "غير منزّل"}
+                    {pack ? `${pack.count.toLocaleString("en-US")} مدخل` : "غير منزّل"}
                   </span>
                 </div>
                 <div className="border-y border-phone-border py-5">
@@ -579,6 +628,12 @@ export function PhoneFlow({
                 <p className="text-xs leading-7 text-phone-muted">
                   MZGTA مستقل عن PlayStation. الترجمة تظهر في متصفح التلفزيون، ولا توضع فوق مدخل
                   HDMI.
+                </p>
+                <p className="text-xs leading-7 text-phone-muted">
+                  محرك التسجيل الأصلي: Chiaki · AGPL-3.0.{" "}
+                  <a className="underline" href="/licenses/mzgta-source.zip" download>
+                    المصدر والتراخيص
+                  </a>
                 </p>
               </div>
             )}

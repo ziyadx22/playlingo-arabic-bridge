@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import plistlib
 import tempfile
+import tarfile
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -43,6 +44,32 @@ class NativeConfigurationTests(unittest.TestCase):
             self.assertEqual(result["CFBundleDisplayName"], "MZGTA")
             for name in ["NSCameraUsageDescription", "NSMicrophoneUsageDescription", "NSSpeechRecognitionUsageDescription"]:
                 self.assertTrue(result[name])
+            self.assertTrue(result["NSLocalNetworkUsageDescription"])
+            self.assertEqual(result["NSBonjourServices"], ["_ps4._udp", "_ps5._udp"])
+
+    def test_ios_plugin_sources_are_compiled_and_registered_idempotently(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            template = Path(__file__).resolve().parent.parent / "node_modules/@capacitor/cli/assets/ios-spm-template.tar.gz"
+            with tarfile.open(template) as archive:
+                for member in archive.getmembers():
+                    if member.name.endswith("project.pbxproj") or member.name.endswith("Main.storyboard"):
+                        destination = root / member.name.lstrip("./")
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_bytes(archive.extractfile(member).read())
+            native.configure_ios_plugin(root)
+            project = root / "App/App.xcodeproj/project.pbxproj"
+            first = project.read_text()
+            native.configure_ios_plugin(root)
+            self.assertEqual(first, project.read_text())
+            self.assertIn("PS5RemotePlayPlugin.swift in Sources", first)
+            self.assertIn("PS5RemotePlayPlugin.m in Sources", first)
+            self.assertIn("regist.c in Sources", first)
+            self.assertIn("CHIAKI_APPLE_CRYPTO=1", first)
+            self.assertEqual(first.count("SWIFT_OBJC_BRIDGING_HEADER ="), 2)
+            self.assertIn('customClass="MZGTABridgeViewController"', (root / "App/App/Base.lproj/Main.storyboard").read_text())
+            with (root / "App/App/MZGTA.entitlements").open("rb") as file:
+                self.assertTrue(plistlib.load(file)["com.apple.developer.networking.multicast"])
 
 
 if __name__ == "__main__":

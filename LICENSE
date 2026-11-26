@@ -1,0 +1,12 @@
+MZGTA application and native integration source are distributed under the
+GNU Affero General Public License version 3 (AGPL-3.0-only).
+The license text is in ios-native-plugin/chiaki/COPYING.
+
+Preserve existing third-party notices and licenses. Dependencies retain their
+own licenses. Chiaki's original files retain their OpenSSL license exception.
+FreeDict/Arabeyes dictionary data is a separate GPL-2.0-or-later data work;
+its complete source and license are in public/packs/. No proprietary game
+assets or dialogue rights are claimed.
+
+The corresponding MZGTA source is made available in-app through
+/licenses/mzgta-source.zip. Rebuild that archive when shipping source changes.

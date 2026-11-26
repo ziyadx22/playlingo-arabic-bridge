@@ -47,7 +47,7 @@ iOS build, and Android uses Gradle's standard debug signing key.
 | Workflow      | Artifact                     | Requirements                                         |
 | ------------- | ---------------------------- | ---------------------------------------------------- |
 | `ios-ipa`     | `build/ipa/MZGTA.ipa`        | macOS runner, latest Xcode, Node 22, iOS 15+         |
-| `android-apk` | `build/android/MZGTA-TV.apk` | Linux runner, Java 21, Android SDK 36, Android TV 7+ |
+| `android-apk` | `build/android/MZGTA-TV.apk` | macOS runner, Java 21, Android SDK 36, Android TV 7+ |
 
 **Unsigned is not ad-hoc signed.** The IPA cannot be installed directly or
 submitted to the App Store. Apple signing and a provisioning profile are required
@@ -66,7 +66,8 @@ The Android workflow adds Leanback launcher support, a TV banner, optional
 touchscreen/camera/microphone features, and landscape orientation. The iOS
 workflow adds camera, microphone, and speech privacy descriptions. Actual camera,
 speech availability, remote control navigation, and native installation must be
-tested on physical devices; packaging does not provide PS5 Remote Play integration.
+tested on physical devices. The iOS build includes PS5 discovery and registration,
+not a Remote Play stream decoder. Browser mode still uses the official setup guide.
 
 Local native preparation after `npm install`:
 
@@ -83,3 +84,52 @@ python3 scripts/configure-native.py android
 
 Validate native configuration helpers with:
 `python3 -B -m unittest discover -s scripts -p 'test_*.py'`.
+
+## Expanded offline dictionary
+
+`scripts/build-gaming-dictionary.py` converts the checksum-pinned FreeDict / Arabeyes
+English–Arabic 0.6.3 source into a separately licensed downloadable data pack.
+It contains over 30,000 real general vocabulary entries, not 30,000 hand-reviewed
+gaming sentences. Curated gaming overrides cover HUD, objectives, open world,
+story, horror, Souls and RPG terminology. The UI reports the actual unique count.
+Original source and GPL-2.0-or-later data license are served alongside the pack.
+No proprietary game dialogue corpus is represented as included.
+
+Downloads validate and index entries in batches, then commit ready metadata.
+The engine uses longest-phrase matching, conservative inflection fallbacks and
+limited adjective/noun ordering. Non-exact sentences prefer MyMemory when online.
+Unknown offline words remain visibly marked; natural grammar and unlimited
+coverage cannot be guaranteed. This shell needs the published site to start,
+so an installed dictionary does not make cold native launch fully offline.
+
+## Native PS5 discovery and registration
+
+`ios-native-plugin/` includes Capacitor 8 Swift/Objective-C adapters and pinned
+Chiaki/chiaki4deck v1.0.0 registration-only C source. Its actual license is
+AGPL-3.0-only with an OpenSSL exception (GPL family); see NOTICE and COPYING.
+Source distribution was approved. No cryptographic handshake is simulated.
+Registration is encrypted HTTP on port 9295 using Chiaki's key derivation and
+validated response, not an invented TLS endpoint. Keys remain in iOS Keychain;
+only registration state and nickname cross the JavaScript bridge.
+
+The native wizard needs the user's **base64-encoded eight-byte PSN account ID**,
+not the PSN display name, password or a guessed ID. Enable Remote Play on PS5,
+join the same Wi-Fi, grant Local Network access, select the actual discovered
+console or enter its private IPv4 address, and enter the current eight-digit PIN.
+Discovery sends the PS5 UDP search on 9302 and PS4 search on 987. Network.framework
+checks the Wi-Fi path; BSD sockets supply SO_BROADCAST, which NWConnection does
+not expose. Bonjour declarations alone do not grant UDP broadcast permission.
+
+**Signing prerequisite:** iOS broadcast requires Apple's multicast networking
+entitlement in a signed provisioning profile. The helper creates the entitlement
+file; an unsigned IPA cannot enable it. Manual unicast registration is available
+when discovery is not permitted. A physical PS5/iPhone and Xcode build are needed
+to verify firmware compatibility; this environment cannot test either hardware.
+Successful registration is shown as registered, never falsely as a live stream.
+
+Run `sh scripts/test-remote-play-crypto.sh` on macOS to test the Apple crypto
+adapter with upstream PS5 known-answer vectors; Codemagic runs this before
+Xcode. Linux can test the same protocol tables with OpenSSL development headers.
+Application/native source is distributed under AGPL-3.0-only (see LICENSE);
+`python3 scripts/prepare-source-offer.py` creates the inspected source download
+linked from the account screen. Both CI workflows refresh it before building.
