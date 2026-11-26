@@ -116,7 +116,9 @@ def configure_ios_plugin(root):
     xml = storyboard.read_text().replace('customClass="CAPBridgeViewController" customModule="Capacitor"', 'customClass="MZGTABridgeViewController" customModule="App" customModuleProvider="target"')
     storyboard.write_text(xml)
     with (root / "App/App/MZGTA.entitlements").open("wb") as file:
-        plistlib.dump({"com.apple.developer.networking.multicast": True}, file)
+        plistlib.dump({"com.apple.developer.networking.multicast": True, "com.apple.security.application-groups": ["group.com.mzgta.app"]}, file)
+    # The ReplayKit extension lives beside the App target; add-broadcast-extension.rb creates its target.
+    shutil.copytree(Path(__file__).resolve().parent.parent / "ios-broadcast-extension", root / "App/MZGTABroadcast", dirs_exist_ok=True)
 
 
 if __name__ == "__main__":

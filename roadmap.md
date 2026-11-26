@@ -17,3 +17,4 @@
 - [x] Validate offline translation, native configuration, protocol crypto, and browser-to-TV flow
 - [x] Audit copied native sources, verify Swift 5 syntax and C protocol tests, and add Apple-toolchain preflight checks
 - [ ] Validate Xcode compilation and real PS5/iPhone discovery/registration — requires macOS/iOS SDK, physical hardware and multicast-enabled signing
+- [ ] Verify the MZGTA Subtitles screen-broadcast extension on a real iPhone with PS Remote Play (needs signing with App Group group.com.mzgta.app and device testing)

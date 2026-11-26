@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "./Logo";
 import { ConsoleArt } from "./ConsoleArt";
 import { PairingWizard } from "./PairingWizard";
+import { RemotePlayCapture } from "./RemotePlayCapture";
 import { lastSessionSchema, readLocal, saveLocal, type LastSession } from "@/lib/phone-storage";
 import {
   downloadGamingDictionary,
@@ -295,6 +296,7 @@ export function PhoneFlow({
                     </Button>
                   </div>
                 </article>
+                <RemotePlayCapture room={room} paired={paired} />
                 <article className="phone-card p-5">
                   <div className="mb-5 flex items-center justify-between">
                     <div>
