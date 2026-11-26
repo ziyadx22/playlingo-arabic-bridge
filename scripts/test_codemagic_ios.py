@@ -51,6 +51,30 @@ puts JSON.generate({sources: t.source_build_phase.files_references.map { |r| r.r
   flags: t.source_build_phase.files.select { |f| f.file_ref.path.end_with?(".c") }.map { |f| f.settings["COMPILER_FLAGS"] }})
 '''))
 
+    def test_broadcast_extension_builds_as_named_appex(self):
+        script = str(ROOT / "scripts/add-broadcast-extension.rb")
+        for _ in range(2):
+            subprocess.run(["ruby", script, "ios/App/App.xcodeproj"], cwd=self.root, check=True, capture_output=True)
+        result = json.loads(self.run_ruby('''require "xcodeproj"
+require "json"
+p = Xcodeproj::Project.open("ios/App/App.xcodeproj")
+t = p.targets.find { |item| item.name == "MZGTABroadcast" }
+app = p.targets.find { |item| item.name == "App" }
+embed = app.copy_files_build_phases.find { |ph| ph.name == "Embed App Extensions" }
+puts JSON.generate({count: p.targets.count { |item| item.name == "MZGTABroadcast" },
+  product: [t.product_reference.name, t.product_reference.path],
+  embedded: embed.files_references.map(&:path),
+  settings: t.build_configurations.map { |c| c.build_settings.slice("PRODUCT_NAME", "PRODUCT_MODULE_NAME",
+    "WRAPPER_EXTENSION", "PRODUCT_BUNDLE_IDENTIFIER", "INFOPLIST_FILE", "SKIP_INSTALL") }})
+'''))
+        self.assertEqual(result["count"], 1)
+        self.assertEqual(result["product"], ["MZGTABroadcast.appex", "MZGTABroadcast.appex"])
+        self.assertEqual(result["embedded"], ["MZGTABroadcast.appex"])
+        for settings in result["settings"]:
+            self.assertEqual(settings, {"PRODUCT_NAME": "MZGTABroadcast", "PRODUCT_MODULE_NAME": "MZGTABroadcast",
+                "WRAPPER_EXTENSION": "appex", "PRODUCT_BUNDLE_IDENTIFIER": "com.mzgta.app.MZGTABroadcast",
+                "INFOPLIST_FILE": "MZGTABroadcast/Info.plist", "SKIP_INSTALL": "YES"})
+
     def test_sources_registered_once_even_after_repeat_run(self):
         first = self.inspect_project()
         self.run_ruby(RUBY)

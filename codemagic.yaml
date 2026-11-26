@@ -87,6 +87,7 @@ workflows:
           proj.save
           RUBY
           ruby scripts/add-broadcast-extension.rb ios/App/App.xcodeproj
+          grep -Eq 'path = "?MZGTABroadcast\.appex"?;' ios/App/App.xcodeproj/project.pbxproj || { echo 'MZGTABroadcast product is not named MZGTABroadcast.appex'; exit 1; }
           plutil -lint ios/App/MZGTABroadcast/Info.plist ios/App/MZGTABroadcast/MZGTABroadcast.entitlements
           plutil -lint ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj ios/App/App/MZGTA.entitlements
           sh scripts/check-native-ios.sh ios
