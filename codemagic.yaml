@@ -1,0 +1,86 @@
+# Online Capacitor shells: keep the published HTTPS app available.
+# iOS output is UNSIGNED, not ad-hoc signed or directly installable.
+workflows:
+  ios-ipa:
+    name: MZGTA iPhone — unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 22
+      xcode: latest
+      vars:
+        MZGTA_NATIVE_VIEW: phone
+    scripts:
+      - name: Install dependencies
+        script: |
+          set -eu
+          npm install --no-audit --no-fund
+      - name: Build web app and prepare native shell
+        script: |
+          set -eu
+          npm run build
+          node scripts/prepare-capacitor.mjs
+      - name: Generate and sync iOS (Capacitor 8 Swift Package Manager)
+        script: |
+          set -eu
+          if [ ! -d ios ]; then npx cap add ios; fi
+          npx cap sync ios
+          python3 scripts/configure-native.py ios
+          sips -z 1024 1024 public/icons/mzgta-512.png --out ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
+      - name: Build unsigned iPhone app and package MZGTA.ipa
+        script: |
+          set -eu
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+          test -d build/ios/Build/Products/Release-iphoneos/App.app
+          mkdir -p build/ipa/Payload
+          cp -R build/ios/Build/Products/Release-iphoneos/App.app build/ipa/Payload/
+          (cd build/ipa && zip -qry MZGTA.ipa Payload)
+    artifacts:
+      - build/ipa/MZGTA.ipa
+
+  android-apk:
+    name: MZGTA Android TV — debug APK
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 22
+      java: 21
+      vars:
+        MZGTA_NATIVE_VIEW: tv
+    scripts:
+      - name: Install dependencies
+        script: |
+          set -eu
+          npm install --no-audit --no-fund
+      - name: Build web app and prepare native shell
+        script: |
+          set -eu
+          npm run build
+          node scripts/prepare-capacitor.mjs
+      - name: Generate and sync Android TV launcher
+        script: |
+          set -eu
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+          python3 scripts/configure-native.py android
+      - name: Install required Android SDK
+        script: |
+          set -eu
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > android/local.properties
+      - name: Build and rename debug APK
+        script: |
+          set -eu
+          chmod +x android/gradlew
+          (cd android && ./gradlew assembleDebug --no-daemon)
+          mkdir -p build/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk build/android/MZGTA-TV.apk
+    artifacts:
+      - build/android/MZGTA-TV.apk

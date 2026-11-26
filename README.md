@@ -36,3 +36,50 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Native iPhone and Android TV builds (Codemagic)
+
+Connect this GitHub repository to Codemagic, select configuration from
+`codemagic.yaml`, then start `ios-ipa` or `android-apk`. The workflows generate
+native projects each run; no Apple signing secrets are needed for the **unsigned**
+iOS build, and Android uses Gradle's standard debug signing key.
+
+| Workflow      | Artifact                     | Requirements                                         |
+| ------------- | ---------------------------- | ---------------------------------------------------- |
+| `ios-ipa`     | `build/ipa/MZGTA.ipa`        | macOS runner, latest Xcode, Node 22, iOS 15+         |
+| `android-apk` | `build/android/MZGTA-TV.apk` | Linux runner, Java 21, Android SDK 36, Android TV 7+ |
+
+**Unsigned is not ad-hoc signed.** The IPA cannot be installed directly or
+submitted to the App Store. Apple signing and a provisioning profile are required
+for installation. Personal-device development signing may be possible with a
+free Apple ID through Xcode or a re-signing tool, subject to Apple's restrictions;
+ad-hoc distribution and App Store distribution require the paid developer program.
+
+These are **online Capacitor shells**, not offline bundled copies of the full
+app: TanStack Start's translation functions need a hosted server. `webDir` is
+`dist`; `scripts/prepare-capacitor.mjs` creates the local fallback HTML after the
+normal web build, and Capacitor loads the published HTTPS app (iPhone: `view=phone`,
+TV: `view=tv`). Keep the published site available and publish web changes before
+testing native builds. No private backend keys are embedded in the wrappers.
+
+The Android workflow adds Leanback launcher support, a TV banner, optional
+touchscreen/camera/microphone features, and landscape orientation. The iOS
+workflow adds camera, microphone, and speech privacy descriptions. Actual camera,
+speech availability, remote control navigation, and native installation must be
+tested on physical devices; packaging does not provide PS5 Remote Play integration.
+
+Local native preparation after `npm install`:
+
+```sh
+npm run build
+node scripts/prepare-capacitor.mjs
+npx cap add ios && npx cap sync ios
+python3 scripts/configure-native.py ios
+# Android TV, separately:
+MZGTA_NATIVE_VIEW=tv npx cap add android
+MZGTA_NATIVE_VIEW=tv npx cap sync android
+python3 scripts/configure-native.py android
+```
+
+Validate native configuration helpers with:
+`python3 -B -m unittest discover -s scripts -p 'test_*.py'`.

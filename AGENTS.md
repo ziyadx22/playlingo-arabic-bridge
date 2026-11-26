@@ -40,3 +40,5 @@ use the editor.
 - Store the validated starter glossary and local session metadata in browser IndexedDB; use exact glossary matches before cloud translation and never persist console pairing PINs.
 - Treat PS5 setup as a guide to the official Remote Play app, not browser discovery or authentication, because the web app has no console protocol connection.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
+- Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.
+- Generate native projects in CI, apply idempotent platform patches after sync, and keep signing credentials and generated native output out of source deliveries.

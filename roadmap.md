@@ -8,3 +8,5 @@
 - [x] Redesign iPhone tabs, devices, five-step setup guide, and live controls
 - [x] Download a real starter glossary to IndexedDB and reuse it in translation
 - [x] Verify setup validation, storage, mobile layout, and phone-to-TV translation
+- [x] Configure Capacitor and Codemagic iPhone / Android TV packaging
+- [x] Validate native setup scripts and document unsigned iPhone installation limits
