@@ -64,3 +64,13 @@ export async function removeConsoleRegistration(ip: string) {
   requireNative();
   return plugin.removeRegistration({ ip });
 }
+
+export type NativeBridgeStatus = "active" | "pairing-off" | "native-no-plugin" | "browser";
+/** Reads window.Capacitor directly so the badge reflects the real Swift bridge, never a web mock. */
+export function nativeBridgeStatus(): NativeBridgeStatus {
+  const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean; Plugins?: Record<string, unknown> } }).Capacitor;
+  if (!cap?.isNativePlatform?.()) return "browser";
+  if (cap.Plugins?.["PS5RemotePlay"] && nativePS5Available()) return "active";
+  if (ps5PairingDisabledInBuild()) return "pairing-off";
+  return "native-no-plugin";
+}

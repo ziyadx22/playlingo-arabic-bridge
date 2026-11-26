@@ -17,6 +17,8 @@ import {
   discoverConsoles,
   nativePS5Available,
   ps5PairingDisabledInBuild,
+  nativeBridgeStatus,
+  type NativeBridgeStatus,
   registerConsole,
   type DiscoveredConsole,
 } from "@/lib/ps5-remote-play";
@@ -37,6 +39,7 @@ export function PairingWizard({
   const ip = selected?.ip ?? "";
   const [pin, setPin] = useState("");
   const [native, setNative] = useState(false);
+  const [bridge, setBridge] = useState<NativeBridgeStatus>("browser");
   const [buildOff, setBuildOff] = useState(false);
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
   const [busy, setBusy] = useState(false);
@@ -45,6 +48,7 @@ export function PairingWizard({
   useEffect(() => {
     setNative(nativePS5Available());
     setBuildOff(ps5PairingDisabledInBuild());
+    setBridge(nativeBridgeStatus());
   }, []);
   const scan = async () => {
     setBusy(true);
@@ -203,6 +207,12 @@ export function PairingWizard({
           <div className="flex justify-center py-3">
             <ConsoleArt large />
           </div>
+          <p role="status" dir="ltr" className="phone-card px-4 py-2 text-xs text-phone-muted">
+            {bridge === "active" && "Native Bridge: Active ✅"}
+            {bridge === "pairing-off" && "Native Bridge: Active ✅ (PS5 plugin off in this build)"}
+            {bridge === "native-no-plugin" && "Native Bridge: PS5RemotePlay plugin missing ⚠️"}
+            {bridge === "browser" && "Native Bridge: Not available (web browser)"}
+          </p>
           {buildOff && (
             <p role="status" className="phone-card p-4 text-sm leading-7">
               {PAIRING_OFF}
