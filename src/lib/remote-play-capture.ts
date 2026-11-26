@@ -48,8 +48,8 @@ export async function startScreenCapture(room: string, preset: RegionPreset) {
     captureConfig.parse({
       room,
       apiBase: window.location.origin,
-      realtimeUrl: import.meta.env.VITE_SUPABASE_URL,
-      anonKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      realtimeUrl: import.meta.env["VITE_SUPABASE_URL"],
+      anonKey: import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"],
       regions: [REGION_PRESETS[preset]],
     }),
   );
