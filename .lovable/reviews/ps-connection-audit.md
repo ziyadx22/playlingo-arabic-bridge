@@ -24,6 +24,7 @@ So right now, none of the native PlayStation code can run on your phone. A paid 
 |---|---|
 | `src/components/sard/PairingWizard.tsx` | Step 4 "hide connection message" and step 5 "sign in with your account" are just checkboxes. In a browser, steps 2–3 move forward without contacting anything, then "finish" |
 | `src/components/sard/PhoneFlow.tsx` (PlayStation card only) | Shows "setup guide complete" / "registered" — this is not a Remote Play session status |
+| `src/components/sard/PhoneView.tsx` (live translation screen, PlayStation status line only) | Shows "PlayStation registered · no active stream" from the same pairing flag, not from a real capture session |
 | `src/components/sard/RemotePlayCapture.tsx` | The 5-step checklist is manual ticks only. Status shows only alive/stopped, not what was read or sent |
 | PSN authentication | **None exists.** It must stay that way: Sony's own app signs in, and MZGTA never asks for your password |
 
@@ -31,11 +32,12 @@ So right now, none of the native PlayStation code can run on your phone. A paid 
 **Modify**
 1. `src/components/sard/PairingWizard.tsx`: remove the fake steps and the browser pass-through. Becomes: choose PS5 → one-time setup in Sony's app (secondary account, Remote Play) → **Connect** opens the real iOS broadcast sheet. In a browser it's disabled, with the reason shown.
 2. `src/components/sard/PhoneFlow.tsx`: PlayStation card only. Its status is the real status from the extension: not running / waiting for frames / reading / last English line / last Arabic sent / error.
-3. `src/components/sard/RemotePlayCapture.tsx`: merged into the flow above (the card is removed from the devices list).
-4. `src/lib/remote-play-capture.ts`: add the new status fields.
-5. `ios-broadcast-extension/SampleHandler.swift`: report the last English text, last Arabic text, the count of lines sent and errors to the app.
-6. `codemagic.yaml`: **add** a new signed iPhone workflow (Codemagic automatic signing for `com.mzgta.app` + `com.mzgta.app.MZGTABroadcast`, App Group). The unsigned and Android TV workflows stay as they are.
-7. `src/test/remote-play-capture.test.ts`, `AGENTS.md`, `roadmap.md`: matching updates.
+3. `src/components/sard/PhoneView.tsx`: only the PlayStation status line on the live translation screen, showing the same real extension status.
+4. `src/components/sard/RemotePlayCapture.tsx`: merged into the flow above (the card is removed from the devices list).
+5. `src/lib/remote-play-capture.ts`: add the new status fields.
+6. `ios-broadcast-extension/SampleHandler.swift`: report the last English text, last Arabic text, the count of lines sent and errors to the app.
+7. `codemagic.yaml`: **add** a new signed iPhone workflow (Codemagic automatic signing for `com.mzgta.app` + `com.mzgta.app.MZGTABroadcast`, App Group). The unsigned and Android TV workflows stay as they are.
+8. `src/test/remote-play-capture.test.ts`, `AGENTS.md`, `roadmap.md`: matching updates.
 
 **Optional remove** (Chiaki pairing has nothing to use it without a session/video player):
 `ios-native-plugin/PS5RemotePlayPlugin.swift/.m/.h`, `ios-native-plugin/chiaki/`, `src/lib/ps5-remote-play.ts`, `src/test/ps5-remote-play.test.ts`, related lines in `MZGTABridgeViewController.swift`, `MZGTA-Bridging-Header.h`, `scripts/configure-native.py`, `scripts/check-native-ios.sh`, `scripts/test_remote_play_crypto.*`.
