@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- TV↔phone live sync uses Lovable Cloud realtime broadcast rooms keyed by the 6-digit PIN (src/lib/sync.ts), no tables — works across devices without storing data.
+- Translation runs server-side in src/lib/translate.functions.ts via the AI Gateway; OCR (tesseract.js) and QR scanning (jsqr) are lazy-imported in the browser only.
