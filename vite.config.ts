@@ -31,6 +31,9 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,json}"],
+        // Packs are downloaded on demand into IndexedDB, not the app-shell cache.
+        // Source/license archives must also stay out of automatic precaching.
+        globIgnores: ["**/packs/**", "**/licenses/**"],
         runtimeCaching: [
           {
             urlPattern: ({ request, sameOrigin, url }) =>
