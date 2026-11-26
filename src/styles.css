@@ -59,18 +59,23 @@
   --violet: oklch(0.65 0.24 300);
   --success: oklch(0.8 0.19 150);
   --gradient-neon: linear-gradient(120deg, var(--neon), var(--violet));
-  --glow-neon: 0 0 24px color-mix(in oklab, var(--neon) 55%, transparent);
-  --glow-violet: 0 0 28px color-mix(in oklab, var(--violet) 55%, transparent);
+  --glow-neon: none;
+  --glow-violet: none;
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
-  body { background: var(--obsidian); color: var(--color-foreground); font-family: var(--font-sans); }
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background: var(--obsidian);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
 }
 
 @utility glass {
   background: color-mix(in oklab, var(--card) 100%, transparent);
-  backdrop-filter: blur(18px) saturate(150%);
   border: 1px solid var(--border);
 }
 @utility text-gradient {
@@ -79,18 +84,18 @@
   background-clip: text;
   color: transparent;
 }
-@utility bg-gradient-neon { background: var(--gradient-neon); }
-@utility glow-neon { box-shadow: var(--glow-neon); }
-@utility glow-violet { box-shadow: var(--glow-violet); }
+@utility bg-gradient-neon {
+  background: var(--gradient-neon);
+}
+@utility glow-neon {
+  box-shadow: var(--glow-neon);
+}
+@utility glow-violet {
+  box-shadow: var(--glow-violet);
+}
 
 @utility mesh-bg {
-  background:
-    radial-gradient(40% 50% at 15% 20%, color-mix(in oklab, var(--violet) 35%, transparent), transparent 70%),
-    radial-gradient(40% 50% at 85% 80%, color-mix(in oklab, var(--neon) 25%, transparent), transparent 70%),
-    radial-gradient(30% 40% at 70% 10%, color-mix(in oklab, var(--violet) 18%, transparent), transparent 70%),
-    var(--obsidian);
-  background-size: 200% 200%;
-  animation: mesh 18s ease-in-out infinite alternate;
+  background: var(--obsidian);
 }
 @utility grid-lines {
   background-image:
@@ -98,10 +103,56 @@
     linear-gradient(90deg, color-mix(in oklab, var(--neon) 8%, transparent) 1px, transparent 1px);
   background-size: 48px 48px;
 }
-@keyframes mesh { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
-@keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(400%); } }
-@keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-@keyframes subin { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
-@utility animate-scan { animation: scan 2.4s linear infinite; }
-@utility animate-floaty { animation: floaty 6s ease-in-out infinite; }
-@utility animate-subin { animation: subin .5s ease-out both; }
+@keyframes mesh {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 100% 100%;
+  }
+}
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(400%);
+  }
+}
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes subin {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility animate-scan {
+  animation: scan 2.4s linear infinite;
+}
+@utility animate-floaty {
+  animation: floaty 6s ease-in-out infinite;
+}
+@utility animate-subin {
+  animation: subin 0.18s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,4 +1,5 @@
 <!-- LOVABLE:BEGIN -->
+
 > [!IMPORTANT]
 > This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
 > published git history — force pushing, or rebasing/amending/squashing commits
@@ -27,8 +28,11 @@ use the editor.
   `LOVABLE_API_KEY`. When Lovable does not provide one, users can bring their
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
+
 <!-- LOVABLE:END -->
 
 - TV↔phone live sync uses Lovable Cloud realtime broadcast rooms keyed by the 6-digit PIN (src/lib/sync.ts), no tables — works across devices without storing data.
-- Translation runs server-side in src/lib/translate.functions.ts via the AI Gateway; OCR (tesseract.js) and QR scanning (jsqr) are lazy-imported in the browser only.
+- Translation uses the free MyMemory API in a server function with bounded queries and timeout; browser-only OCR and QR libraries are lazy-loaded to avoid startup cost.
+- Camera OCR reuses one worker and canvas, scans sequentially, and pauses in hidden tabs; translation caches are bounded to the current browser session to reduce repeated provider requests.
+- Room pairing uses presence, retried handshakes, and buffered broadcast delivery; replay current TV settings and subtitles on a phone handshake to recover reconnects.
 - PWA metadata and icons live in public/manifest.json and public/icons; the generated /sw.js is registered only by src/lib/pwa.ts, which blocks dev and Lovable preview hosts to prevent stale previews.
