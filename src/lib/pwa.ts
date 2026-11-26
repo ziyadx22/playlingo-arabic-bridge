@@ -44,6 +44,7 @@ export async function registerPwa(): Promise<void> {
 
   const hostname = window.location.hostname.toLowerCase();
   const refused =
+    window.location.protocol === "capacitor:" ||
     !import.meta.env.PROD ||
     window.self !== window.top ||
     isPreviewHostname(hostname) ||

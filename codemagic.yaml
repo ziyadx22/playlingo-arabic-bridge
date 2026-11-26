@@ -1,4 +1,4 @@
-# Online Capacitor shells: keep the published HTTPS app available.
+# Local iOS SPA; Android TV keeps its published HTTPS shell.
 # iOS output is UNSIGNED, not ad-hoc signed or directly installable.
 workflows:
   ios-ipa:
@@ -10,6 +10,7 @@ workflows:
       xcode: "26.0"
       vars:
         MZGTA_NATIVE_VIEW: phone
+        MZGTA_LOCAL_IOS: "1"
     scripts:
       - &install_deps
         name: Install dependencies
@@ -133,6 +134,7 @@ workflows:
         - appstore_credentials
       vars:
         MZGTA_NATIVE_VIEW: phone
+        MZGTA_LOCAL_IOS: "1"
         # "0" = no multicast entitlement, PS5 pairing hidden. Set to "1" after Apple approves multicast.
         MZGTA_MULTICAST: "0"
     scripts:

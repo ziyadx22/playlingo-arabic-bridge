@@ -43,7 +43,8 @@ use the editor.
 - PS5 pairing selects only consoles found by local discovery (no manual IP entry, no IP-only success, no skipping the PIN for saved keys); success is shown only after Chiaki registration with the 8-digit PIN succeeds and keys are stored in Keychain. Registration never implies an active stream.
 - Never persist console PINs/account IDs in browser storage or expose/log registration keys; save keys only in device-bound iOS Keychain after successful protocol validation.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
-- Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.
+- iOS builds use TanStack SPA mode (MZGTA_LOCAL_IOS=1) and dist/native-ios without server.url; Android TV retains its online shell so its existing behavior stays unchanged.
+- Local iOS translation uses CapacitorHttp with the existing hosted public endpoint, and ReplayKit receives the hosted HTTPS origin; Worker code must never be packaged as native client assets.
 - Generate native projects in CI, apply idempotent platform patches after sync, and keep signing credentials and generated native output out of source deliveries.
 - After iOS native copying, reconcile source/header references with xcodeproj by resolved path and configure the App bridging header in every target configuration; this ensures compilation without duplicate source entries.
 - Pin the iOS workflow to Xcode 26.0 or newer (required by Capacitor 8) with Swift 5 language mode and run Apple SDK syntax/C/Objective-C/bridge checks before the full Xcode build; preserve xcresult diagnostics so compiler failures remain actionable.

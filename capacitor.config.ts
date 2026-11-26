@@ -1,16 +1,20 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// Server functions stay on the published origin, not inside the native binary.
+// Android TV retains its working online shell. iOS loads a real local SPA bundle.
 const view = process.env["MZGTA_NATIVE_VIEW"] === "tv" ? "tv" : "phone";
 
 const config: CapacitorConfig = {
   appId: "com.mzgta.app",
   appName: "MZGTA",
-  webDir: "dist",
-  server: {
-    url: `https://playlingo-arabic-bridge.lovable.app/?view=${view}`,
-    cleartext: false,
-  },
+  webDir: view === "tv" ? "dist" : "dist/native-ios",
+  ...(view === "tv"
+    ? {
+        server: {
+          url: `https://playlingo-arabic-bridge.lovable.app/?view=${view}`,
+          cleartext: false,
+        },
+      }
+    : {}),
 };
 
 export default config;

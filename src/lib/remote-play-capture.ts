@@ -1,5 +1,6 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { z } from "zod";
+import { captureApiBase } from "./native-runtime";
 
 export type CaptureStatus = {
   active?: boolean;
@@ -35,7 +36,14 @@ export const captureConfig = z.object({
   realtimeUrl: z.string().url().startsWith("https://"),
   anonKey: z.string().min(1),
   regions: z
-    .array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), w: z.number().gt(0).max(1), h: z.number().gt(0).max(1) }))
+    .array(
+      z.object({
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+        w: z.number().gt(0).max(1),
+        h: z.number().gt(0).max(1),
+      }),
+    )
     .min(1)
     .max(2),
 });
@@ -50,7 +58,7 @@ export async function startScreenCapture(room: string, preset: RegionPreset) {
   await plugin.configure(
     captureConfig.parse({
       room,
-      apiBase: window.location.origin,
+      apiBase: captureApiBase(),
       realtimeUrl: import.meta.env["VITE_SUPABASE_URL"],
       anonKey: import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"],
       regions: [REGION_PRESETS[preset]],

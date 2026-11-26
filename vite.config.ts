@@ -10,7 +10,19 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
+const localIos = process.env["MZGTA_LOCAL_IOS"] === "1";
+
 export default defineConfig({
+  ...(localIos
+    ? {
+        nitro: {
+          output: { dir: "dist", serverDir: "dist/server", publicDir: "dist/client" },
+        },
+      }
+    : {}),
+  vite: {
+    define: { "import.meta.env.VITE_MZGTA_LOCAL_IOS": JSON.stringify(localIos) },
+  },
   plugins: [
     VitePWA({
       strategies: "generateSW",
@@ -65,6 +77,7 @@ export default defineConfig({
     }),
   ],
   tanstackStart: {
+    ...(localIos ? { spa: { enabled: true } } : {}),
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },

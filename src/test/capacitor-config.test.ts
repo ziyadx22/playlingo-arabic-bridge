@@ -14,19 +14,20 @@ describe("Native build identity", () => {
     const { default: config } = await import("../../capacitor.config");
     expect(config.appName).toBe("MZGTA");
   });
-  it("uses dist as the Capacitor web directory", async () => {
+  it("packages only the local iOS client bundle", async () => {
     const { default: config } = await import("../../capacitor.config");
-    expect(config.webDir).toBe("dist");
+    expect(config.webDir).toBe("dist/native-ios");
   });
-  it("opens the phone view in the iPhone workflow", async () => {
+  it("has no remote server URL in the iPhone workflow", async () => {
     vi.stubEnv("MZGTA_NATIVE_VIEW", "phone");
     const { default: config } = await import("../../capacitor.config");
-    expect(config.server?.url).toBe("https://playlingo-arabic-bridge.lovable.app/?view=phone");
-    expect(config.server?.cleartext).toBe(false);
+    expect(config.server).toBeUndefined();
   });
   it("opens the TV view in the Android TV workflow", async () => {
     vi.stubEnv("MZGTA_NATIVE_VIEW", "tv");
     const { default: config } = await import("../../capacitor.config");
     expect(config.server?.url).toBe("https://playlingo-arabic-bridge.lovable.app/?view=tv");
+    expect(config.server?.cleartext).toBe(false);
+    expect(config.webDir).toBe("dist");
   });
 });

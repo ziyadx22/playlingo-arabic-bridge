@@ -47,6 +47,7 @@ class NativeConfigurationTests(unittest.TestCase):
                 self.assertTrue(result[name])
             self.assertTrue(result["NSLocalNetworkUsageDescription"])
             self.assertEqual(result["NSBonjourServices"], ["_ps4._udp", "_ps5._udp"])
+            self.assertIs(result["MZGTAPS5Pairing"], True)
 
     def test_ios_plugin_sources_are_compiled_and_registered_idempotently(self):
         with tempfile.TemporaryDirectory() as tmp:

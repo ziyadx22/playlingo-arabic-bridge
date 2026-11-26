@@ -29,6 +29,7 @@ import { loadGamingDictionary } from "@/lib/gaming-dictionary-storage";
 import { translateHybrid } from "@/lib/smart-offline";
 import { gamingDictionary } from "@/data/gamingDictionary";
 import { changeRoi, type Roi } from "./roi";
+import { translateForApp } from "@/lib/native-runtime";
 
 function Slider({
   label,
@@ -168,7 +169,7 @@ export function PhoneView({
                 line.en,
                 await loadGamingDictionary().catch(() => new Map(Object.entries(gamingDictionary))),
                 navigator.onLine,
-                (text) => translate({ data: { text } }),
+                (text) => translateForApp(text, (input) => translate({ data: { text: input } })),
               );
           if (r.warning) setErr(r.warning);
           if (r.ar) {

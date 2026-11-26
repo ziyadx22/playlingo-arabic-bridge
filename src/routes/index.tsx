@@ -52,7 +52,8 @@ const DEFAULTS: Settings = {
 const EMPTY_SUB: SubMsg = { en: "", ar: "", speaker: "", id: 0 };
 
 function Index() {
-  const { view = "both", room: urlRoom } = Route.useSearch();
+  const { view = import.meta.env["VITE_MZGTA_LOCAL_IOS"] ? "phone" : "both", room: urlRoom } =
+    Route.useSearch();
   const navigate = useNavigate({ from: "/" });
   const isPhone = view === "phone";
 
