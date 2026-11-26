@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">MZGTA</title>
+  <defs>
+    <linearGradient id="neon" x1="80" y1="64" x2="432" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#25f4ee"/>
+      <stop offset="1" stop-color="#a855f7"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0" cy="0" r="1" gradientTransform="translate(180 154) rotate(51) scale(354)">
+      <stop stop-color="#123c52"/>
+      <stop offset="1" stop-color="#060b19"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#aura)"/>
+  <path d="M256 54 431 155v202L256 458 81 357V155Z" fill="none" stroke="url(#neon)" stroke-width="12" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M256 88 402 172v168l-146 84-146-84V172Z" fill="url(#neon)" fill-opacity=".06" stroke="url(#neon)" stroke-opacity=".32" stroke-width="3"/>
+  <path d="m143 310 0-119 56 60 56-60v119" fill="none" stroke="#25f4ee" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M291 191h83l-83 119h83" fill="none" stroke="url(#neon)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M226 128h60" stroke="#a855f7" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="256" cy="355" r="7" fill="#25f4ee" filter="url(#glow)"/>
+</svg>

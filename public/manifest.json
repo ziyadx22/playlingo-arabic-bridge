@@ -1,0 +1,41 @@
+{
+  "id": "/",
+  "name": "MZGTA",
+  "short_name": "MZGTA",
+  "description": "Live Arabic subtitles for PS5 games on your Smart TV, controlled from your phone.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060b19",
+  "theme_color": "#060b19",
+  "categories": ["games", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/mzgta-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/mzgta-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/mzgta-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/mzgta-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

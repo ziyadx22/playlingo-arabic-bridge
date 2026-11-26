@@ -31,3 +31,4 @@ use the editor.
 
 - TV↔phone live sync uses Lovable Cloud realtime broadcast rooms keyed by the 6-digit PIN (src/lib/sync.ts), no tables — works across devices without storing data.
 - Translation runs server-side in src/lib/translate.functions.ts via the AI Gateway; OCR (tesseract.js) and QR scanning (jsqr) are lazy-imported in the browser only.
+- PWA metadata and icons live in public/manifest.json and public/icons; the generated /sw.js is registered only by src/lib/pwa.ts, which blocks dev and Lovable preview hosts to prevent stale previews.
