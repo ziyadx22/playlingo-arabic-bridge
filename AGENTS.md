@@ -46,4 +46,5 @@ use the editor.
 - Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.
 - Generate native projects in CI, apply idempotent platform patches after sync, and keep signing credentials and generated native output out of source deliveries.
 - After iOS native copying, reconcile source/header references with xcodeproj by resolved path and configure the App bridging header in every target configuration; this ensures compilation without duplicate source entries.
+- Pin the iOS workflow to Xcode 16.4 with Swift 5 language mode and run Apple SDK syntax/C/Objective-C/bridge checks before the full Xcode build; preserve xcresult diagnostics so compiler failures remain actionable.
 - Compile the pinned registration-only Chiaki source in the iOS App target with Apple crypto primitives; ship license/source notices and require physical-device verification plus multicast-enabled signing for UDP discovery.

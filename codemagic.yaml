@@ -7,7 +7,7 @@ workflows:
     max_build_duration: 60
     environment:
       node: 22
-      xcode: latest
+      xcode: "16.4"
       vars:
         MZGTA_NATIVE_VIEW: phone
     scripts:
@@ -33,6 +33,9 @@ workflows:
           proj = Xcodeproj::Project.open("ios/App/App.xcodeproj")
           target = proj.targets.find { |item| item.name == "App" }
           abort "App target not found" unless target
+          target.build_configurations.each do |config|
+            config.build_settings["SWIFT_VERSION"] = "5.0"
+          end
           group = proj.main_group.find_subpath("App", true)
           sources = Dir.glob("ios/App/App/**/*.{swift,m,c}").reject { |f| f.end_with?("AppDelegate.swift") }
           if sources.any? { |f| File.extname(f) == ".c" }
@@ -59,16 +62,21 @@ workflows:
           proj.save
           RUBY
           plutil -lint ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj ios/App/App/MZGTA.entitlements
+          sh scripts/check-native-ios.sh ios
           sh scripts/test-remote-play-crypto.sh
           sips -z 1024 1024 public/icons/mzgta-512.png --out ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
       - name: Build unsigned iPhone app and package MZGTA.ipa
         script: |
           set -eu
+          mkdir -p build/ios
+          xcodebuild -version
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Release -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/ios \
+            -resultBundlePath build/ios/MZGTA-build.xcresult \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            SWIFT_VERSION=5.0 \
             build
           test -d build/ios/Build/Products/Release-iphoneos/App.app
           mkdir -p build/ipa/Payload
@@ -76,6 +84,7 @@ workflows:
           (cd build/ipa && zip -qry MZGTA.ipa Payload)
     artifacts:
       - build/ipa/MZGTA.ipa
+      - build/ios/MZGTA-build.xcresult
 
   android-apk:
     name: MZGTA Android TV — debug APK

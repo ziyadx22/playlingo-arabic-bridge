@@ -33,7 +33,7 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         monitor.start(queue: queue)
     }
     private func discover() throws -> [[String: String]] {
-        let fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        let fd = Darwin.socket(AF_INET, SOCK_DGRAM, Int32(IPPROTO_UDP))
         guard fd >= 0 else { throw NSError(domain: "MZGTA", code: 1) }
         defer { Darwin.close(fd) }
         var enabled: Int32 = 1
@@ -99,9 +99,9 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         queue.async {
             do {
-                guard let record = try MZGTARegistration.registerHost(ip, pin: pin, accountID: accountData) else {
-                    call.reject("PS5 returned no registration data", "REGISTRATION_FAILED"); return
-                }
+                // NSError** imports this nullable Objective-C result as a
+                // nonoptional throwing Swift return: nil becomes an error.
+                let record = try MZGTARegistration.registerHost(ip, pin: pin, accountID: accountData)
                 let data = try PropertyListSerialization.data(fromPropertyList: record, format: .binary, options: 0)
                 var item = self.query(ip); item[kSecValueData as String] = data; item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
                 var status = SecItemAdd(item as CFDictionary, nil)
@@ -116,7 +116,10 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         var item = query(ip); item[kSecReturnData as String] = true
         var value: CFTypeRef?
         let status = SecItemCopyMatching(item as CFDictionary, &value)
-        guard status == errSecSuccess, let data = value as? Data, let record = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+        guard status == errSecSuccess,
+              let data = value as? Data,
+              let propertyList = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let record = propertyList as? [String: Any] else {
             call.resolve(["registered": false, "ip": ip]); return
         }
         call.resolve(["registered": true, "ip": ip, "nickname": record["nickname"] as? String ?? "PS5"])

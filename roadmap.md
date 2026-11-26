@@ -15,4 +15,5 @@
 - [x] Add native iOS PS5 discovery and audited registration integration
 - [x] Include GPL-compatible Remote Play source and licensing notices (approved)
 - [x] Validate offline translation, native configuration, protocol crypto, and browser-to-TV flow
+- [x] Audit copied native sources, verify Swift 5 syntax and C protocol tests, and add Apple-toolchain preflight checks
 - [ ] Validate Xcode compilation and real PS5/iPhone discovery/registration — requires macOS/iOS SDK, physical hardware and multicast-enabled signing

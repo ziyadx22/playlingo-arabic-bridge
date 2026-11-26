@@ -44,6 +44,7 @@ p = Xcodeproj::Project.open("ios/App/App.xcodeproj")
 t = p.targets.find { |item| item.name == "App" }
 puts JSON.generate({sources: t.source_build_phase.files_references.map { |r| r.real_path.to_s },
   headers: t.build_configurations.map { |c| c.build_settings["SWIFT_OBJC_BRIDGING_HEADER"] },
+  swift_versions: t.build_configurations.map { |c| c.build_settings["SWIFT_VERSION"] },
   flags: t.source_build_phase.files.select { |f| f.file_ref.path.end_with?(".c") }.map { |f| f.settings["COMPILER_FLAGS"] }})
 '''))
 
@@ -65,6 +66,17 @@ puts JSON.generate({sources: t.source_build_phase.files_references.map { |r| r.r
         header = self.root / "ios/App/App/App-Bridging-Header.h"
         self.assertIn('#import "Native/MZGTA-Bridging-Header.h"', header.read_text())
         self.assertTrue((header.parent / "Native/MZGTA-Bridging-Header.h").is_file())
+
+    def test_every_target_configuration_uses_swift_5(self):
+        versions = self.inspect_project()["swift_versions"]
+        self.assertGreaterEqual(len(versions), 2)
+        self.assertTrue(all(version == "5.0" for version in versions))
+
+    def test_ios_workflow_uses_xcode_16(self):
+        ios_workflow = (ROOT / "codemagic.yaml").read_text().split("  android-apk:")[0]
+        version = re.search(r'^\s+xcode:\s*"([^"]+)"', ios_workflow, re.M)
+        self.assertIsNotNone(version)
+        self.assertEqual(version.group(1), "16.4")
 
 
 if __name__ == "__main__":

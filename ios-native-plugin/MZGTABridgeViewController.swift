@@ -1,3 +1,4 @@
+import Foundation
 import Capacitor
 @objc(MZGTABridgeViewController)
 final class MZGTABridgeViewController: CAPBridgeViewController {
