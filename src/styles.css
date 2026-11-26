@@ -32,9 +32,25 @@
   --color-violet: var(--violet);
   --color-success: var(--success);
   --color-obsidian: var(--obsidian);
+  --color-phone-background: var(--phone-background);
+  --color-phone-foreground: var(--phone-foreground);
+  --color-phone-surface: var(--phone-surface);
+  --color-phone-border: var(--phone-border);
+  --color-phone-muted: var(--phone-muted);
+  --color-phone-primary: var(--phone-primary);
+  --color-phone-primary-foreground: var(--phone-primary-foreground);
+  --color-phone-hardware: var(--phone-hardware);
 }
 
 :root {
+  --phone-background: oklch(0.145 0.014 195);
+  --phone-foreground: oklch(0.95 0.009 190);
+  --phone-surface: oklch(0.195 0.018 195);
+  --phone-border: oklch(0.29 0.021 193);
+  --phone-muted: oklch(0.67 0.022 193);
+  --phone-primary: oklch(0.8 0.135 178);
+  --phone-primary-foreground: oklch(0.17 0.025 180);
+  --phone-hardware: oklch(0.88 0.015 210);
   --radius: 0.9rem;
   --obsidian: oklch(0.11 0.015 270);
   --background: oklch(0.13 0.02 270);
@@ -72,6 +88,44 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
   }
+}
+
+.phone-app {
+  --primary: var(--phone-primary);
+  --primary-foreground: var(--phone-primary-foreground);
+  --background: var(--phone-background);
+  --foreground: var(--phone-foreground);
+  --input: var(--phone-border);
+  --ring: var(--phone-primary);
+  --border: var(--phone-border);
+  --accent: var(--phone-surface);
+  --accent-foreground: var(--phone-foreground);
+  letter-spacing: 0;
+}
+.phone-card {
+  border: 1px solid var(--phone-border);
+  border-radius: 8px;
+  background: var(--phone-surface);
+}
+.phone-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--phone-border);
+  border-radius: 8px;
+  background: var(--phone-background);
+  padding: 12px 14px;
+  color: var(--phone-foreground);
+  outline: none;
+}
+.phone-input:focus {
+  border-color: var(--phone-primary);
+}
+.phone-input::placeholder {
+  color: var(--phone-muted);
+}
+.phone-app button {
+  white-space: normal;
 }
 
 @utility glass {

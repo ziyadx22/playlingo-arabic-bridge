@@ -36,3 +36,7 @@ use the editor.
 - Camera OCR reuses one worker and canvas, scans sequentially, and pauses in hidden tabs; translation caches are bounded to the current browser session to reduce repeated provider requests.
 - Room pairing uses presence, retried handshakes, and buffered broadcast delivery; replay current TV settings and subtitles on a phone handshake to recover reconnects.
 - PWA metadata and icons live in public/manifest.json and public/icons; the generated /sw.js is registered only by src/lib/pwa.ts, which blocks dev and Lovable preview hosts to prevent stale previews.
+- Keep the phone navigation and setup guide separate from capture/translation controls, so navigation cannot misrepresent console connectivity.
+- Store the validated starter glossary and local session metadata in browser IndexedDB; use exact glossary matches before cloud translation and never persist console pairing PINs.
+- Treat PS5 setup as a guide to the official Remote Play app, not browser discovery or authentication, because the web app has no console protocol connection.
+- Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.

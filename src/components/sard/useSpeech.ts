@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Rec = {
   lang: string;
@@ -89,10 +89,10 @@ export function useSpeech(onFinal: (text: string) => void) {
       setErr("تعذّر تشغيل الميكروفون، حاول مجدداً");
     }
   };
-  const stop = () => {
+  const stop = useCallback(() => {
     want.current = false;
     rec.current?.stop();
     setOn(false);
-  };
-  return { on, interim, err, toggle: () => (on ? stop() : start()) };
+  }, []);
+  return { on, interim, err, stop, toggle: () => (on ? stop() : start()) };
 }

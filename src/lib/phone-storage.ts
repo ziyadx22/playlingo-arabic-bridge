@@ -1,10 +1,15 @@
 import { z } from "zod";
 
 export const pairingPin = z.string().regex(/^\d{8}$/);
-export const consoleAddress = z.string().trim().refine((value) => {
-  const parts = value.split(".");
-  return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
-});
+export const consoleAddress = z
+  .string()
+  .trim()
+  .refine((value) => {
+    const parts = value.split(".");
+    return (
+      parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255)
+    );
+  });
 
 export const starterPackSchema = z.object({
   id: z.literal("gaming-starter-v1"),
@@ -33,7 +38,9 @@ export async function saveLocal(id: string, value: unknown): Promise<void> {
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 export async function readLocal(id: string): Promise<unknown> {
@@ -44,7 +51,9 @@ export async function readLocal(id: string): Promise<unknown> {
       request.onsuccess = () => resolve(request.result?.value);
       request.onerror = () => reject(request.error);
     });
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 export async function loadStarterPack(): Promise<StarterPack | null> {
@@ -53,7 +62,10 @@ export async function loadStarterPack(): Promise<StarterPack | null> {
 }
 
 /** Progress measures received bytes; 100 is reported only after the IndexedDB commit. */
-export async function downloadStarterPack(onProgress: (value: number) => void, signal?: AbortSignal) {
+export async function downloadStarterPack(
+  onProgress: (value: number) => void,
+  signal?: AbortSignal,
+) {
   onProgress(0);
   const response = await fetch("/packs/gaming-starter-v1.json", signal ? { signal } : {});
   if (!response.ok) throw new Error("download");
@@ -68,10 +80,13 @@ export async function downloadStarterPack(onProgress: (value: number) => void, s
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
       text += decoder.decode(chunk.value, { stream: true });
-      onProgress(total > 0 ? Math.min(95, Math.round(bytes / total * 95)) : 50);
+      onProgress(total > 0 ? Math.min(95, Math.round((bytes / total) * 95)) : 50);
     }
     text += decoder.decode();
-  } else { text = await response.text(); onProgress(95); }
+  } else {
+    text = await response.text();
+    onProgress(95);
+  }
   const pack = starterPackSchema.parse(JSON.parse(text));
   await saveLocal("starter-pack", pack);
   onProgress(100);
@@ -79,8 +94,16 @@ export async function downloadStarterPack(onProgress: (value: number) => void, s
 }
 
 export function lookupPack(pack: StarterPack | null, text: string): string | undefined {
-  const normalize = (value: string) => value.trim().toLowerCase().replace(/[.!?]+$/, "");
+  const normalize = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[.!?]+$/, "");
   return pack?.entries.find((entry) => normalize(entry.en) === normalize(text))?.ar;
 }
 
-export const lastSessionSchema = z.object({ endedAt: z.number(), lines: z.number(), lastArabic: z.string() });
+export const lastSessionSchema = z.object({
+  endedAt: z.number(),
+  lines: z.number(),
+  lastArabic: z.string(),
+});

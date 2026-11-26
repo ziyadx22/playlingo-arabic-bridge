@@ -8,6 +8,7 @@ import { PhoneView } from "@/components/sard/PhoneView";
 import { type Settings } from "@/components/sard/data";
 import { Button } from "@/components/ui/button";
 import { useRoom, type Msg, type SubMsg } from "@/lib/sync";
+import { appendSubtitle } from "@/lib/subtitle-history";
 
 const search = z.object({
   view: z.enum(["both", "tv", "phone"]).optional(),
@@ -76,7 +77,7 @@ function Index() {
   const pushSub = useCallback((m: SubMsg) => {
     setSub(m);
     setVisible(true);
-    setHistory((h) => [...h.slice(-49), m]);
+    setHistory((h) => appendSubtitle(h, m));
   }, []);
 
   const latest = useRef({ sub, s });
@@ -143,7 +144,9 @@ function Index() {
   ] as const;
   return (
     <div className="min-h-screen mesh-bg">
-      <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
+      <header
+        className={`mx-auto max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5 ${view === "phone" ? "hidden" : "hidden lg:flex"}`}
+      >
         <div className="flex items-center gap-3">
           <Logo />
           <div>
@@ -168,10 +171,10 @@ function Index() {
         </nav>
       </header>
       <main
-        className={`mx-auto grid grid-cols-[minmax(0,1fr)] max-w-7xl gap-8 px-3 sm:px-6 pb-12 ${view === "both" ? "lg:grid-cols-[minmax(0,1fr)_400px]" : ""}`}
+        className={`mx-auto grid grid-cols-[minmax(0,1fr)] gap-8 ${view === "phone" ? "max-w-[440px]" : "max-w-7xl lg:px-6 lg:pb-12"} ${view === "both" ? "lg:grid-cols-[minmax(0,1fr)_400px]" : ""}`}
       >
         {view !== "phone" && (
-          <section className="min-w-0">
+          <section className={`min-w-0 ${view === "both" ? "hidden lg:block" : ""}`}>
             <TvView
               pin={pin}
               url={url}
@@ -198,6 +201,11 @@ function Index() {
               linked={view === "both"}
               connection={status}
               onJoin={(p) => navigate({ search: { view: "phone", room: p } })}
+              onLeave={() => {
+                setPaired(false);
+                navigate({ search: { view: "phone" } });
+              }}
+              onRefresh={() => sendRef.current({ t: "hello" })}
             />
           </section>
         )}
