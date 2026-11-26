@@ -5,3 +5,6 @@
 - [x] Remove costly visual effects and demonstration translations
 - [x] Free live translation, efficient camera/screen OCR, and Remote Play setup guide
 - [x] Reliable cross-device pairing and subtitle delivery; verify end to end
+- [ ] Redesign iPhone tabs, devices, five-step setup guide, and live controls
+- [ ] Download a real starter glossary to IndexedDB and reuse it in translation
+- [ ] Verify setup validation, storage, mobile layout, and phone-to-TV translation

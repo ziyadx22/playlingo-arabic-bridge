@@ -1,0 +1,22 @@
+{
+  "id": "gaming-starter-v1",
+  "name": "قاموس الألعاب الأساسي",
+  "entries": [
+    { "en": "Quest", "ar": "مهمة" },
+    { "en": "Boss", "ar": "زعيم" },
+    { "en": "Checkpoint", "ar": "نقطة حفظ" },
+    { "en": "Lore", "ar": "أساطير العالم" },
+    { "en": "Mission complete", "ar": "اكتملت المهمة" },
+    { "en": "Mission failed", "ar": "فشلت المهمة" },
+    { "en": "Game saved", "ar": "تم حفظ اللعبة" },
+    { "en": "Press X to continue", "ar": "اضغط X للمتابعة" },
+    { "en": "Return to the vehicle", "ar": "عُد إلى المركبة" },
+    { "en": "Follow the waypoint", "ar": "اتبع علامة الوجهة" },
+    { "en": "Wanted level", "ar": "مستوى المطاردة" },
+    { "en": "Lose the cops", "ar": "اهرب من الشرطة" },
+    { "en": "Get in the car", "ar": "اركب السيارة" },
+    { "en": "Health", "ar": "الصحة" },
+    { "en": "Armor", "ar": "الدرع" },
+    { "en": "Ammo", "ar": "الذخيرة" }
+  ]
+}
