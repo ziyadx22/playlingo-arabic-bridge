@@ -15,6 +15,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
     private var candidate = ""
     private var lastSent = ""
     private var frames = 0
+    private var sentCount = 0
     private var room = ""
     private var apiBase = ""
     private var realtimeUrl = ""
@@ -37,7 +38,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
             finishBroadcastWithError(NSError(domain: "MZGTA", code: 1, userInfo: [NSLocalizedDescriptionKey: "Pair MZGTA with your TV first, then start the capture again."]))
             return
         }
-        status(["active": true, "startedAt": Date().timeIntervalSince1970, "error": ""])
+        status(["active": true, "paused": false, "startedAt": Date().timeIntervalSince1970, "sentCount": 0, "lastRead": "", "lastEnglish": "", "lastArabic": "", "error": ""])
     }
 
     override func broadcastFinished() { status(["active": false]) }
@@ -73,6 +74,7 @@ final class SampleHandler: RPBroadcastSampleHandler {
             guard text == self.candidate else { self.candidate = text; return }
             guard text.lowercased() != self.lastSent.lowercased() else { return }
             self.lastSent = text
+            self.status(["lastRead": text])
             self.deliver(text)
         }
     }
@@ -103,8 +105,10 @@ final class SampleHandler: RPBroadcastSampleHandler {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
+            guard let self = self else { return }
             let ok = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
-            self?.status(ok ? ["lastEnglish": english, "lastArabic": arabic, "sentAt": Date().timeIntervalSince1970, "error": ""] : ["error": "tv"])
+            if ok { self.sentCount += 1 }
+            self.status(ok ? ["lastEnglish": english, "lastArabic": arabic, "sentAt": Date().timeIntervalSince1970, "sentCount": self.sentCount, "error": ""] : ["error": "tv"])
         }.resume()
     }
 

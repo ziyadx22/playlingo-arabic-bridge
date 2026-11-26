@@ -6,7 +6,10 @@ export type CaptureStatus = {
   paused?: boolean;
   heartbeat?: number;
   frames?: number;
+  startedAt?: number;
+  lastRead?: string;
   lastEnglish?: string;
+  sentCount?: number;
   lastArabic?: string;
   sentAt?: number;
   error?: string;

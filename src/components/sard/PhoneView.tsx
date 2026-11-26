@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CAPTURE_LABEL, useCaptureStatus } from "@/lib/use-capture-status";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
@@ -120,6 +121,7 @@ export function PhoneView({
   const [active, setActive] = useState(false);
   const [running, setRunning] = useState(false);
   const [consoleRegistered, setConsoleRegistered] = useState(false);
+  const psCapture = useCaptureStatus();
   const retryOffline = useRef<{ en: string; speaker: string } | null>(null);
   const [second, setSecond] = useState(false);
   const [editing, setEditing] = useState(true);
@@ -508,11 +510,13 @@ export function PhoneView({
               <div className="space-y-2 text-[11px]">
                 <p className="flex items-center gap-2 text-phone-muted">
                   <span
-                    className={`size-1.5 rounded-full ${consoleRegistered ? "bg-phone-primary" : "bg-phone-muted"}`}
+                    className={`size-1.5 rounded-full ${psCapture.state === "live" ? "bg-phone-primary" : "bg-phone-muted"}`}
                   />{" "}
-                  {consoleRegistered
-                    ? "البلايستيشن مسجّل · لا يوجد بث نشط"
-                    : "البلايستيشن غير مربوط"}
+                  {psCapture.state === "live"
+                    ? CAPTURE_LABEL.live
+                    : consoleRegistered
+                      ? "البلايستيشن مقترن · التقاط الشاشة غير مفعّل"
+                      : "لا يوجد اتصال بالبلايستيشن"}
                 </p>
                 <p
                   className={`flex items-center gap-2 ${paired ? "text-phone-primary" : "text-phone-muted"}`}

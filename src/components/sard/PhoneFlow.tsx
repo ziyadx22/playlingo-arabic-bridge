@@ -25,6 +25,7 @@ import { Logo } from "./Logo";
 import { ConsoleArt } from "./ConsoleArt";
 import { PairingWizard } from "./PairingWizard";
 import { RemotePlayCapture } from "./RemotePlayCapture";
+import { CAPTURE_LABEL, useCaptureStatus } from "@/lib/use-capture-status";
 import { lastSessionSchema, readLocal, saveLocal, type LastSession } from "@/lib/phone-storage";
 import {
   downloadGamingDictionary,
@@ -78,6 +79,7 @@ export function PhoneFlow({
   const [pack, setPack] = useState<DictionarySummary | null>(null);
   const [progress, setProgress] = useState<DictionaryProgress | null>(null);
   const [consoleRegistered, setConsoleRegistered] = useState(false);
+  const capture = useCaptureStatus();
   const [packError, setPackError] = useState("");
   const [lastSession, setLastSession] = useState<LastSession | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -268,21 +270,16 @@ export function PhoneFlow({
                       <h3 className="text-lg font-semibold">البلايستيشن</h3>
                       <p className="mt-2 flex items-center gap-1.5 text-xs text-phone-muted">
                         <span
-                          className={`size-1.5 rounded-full ${consoleRegistered ? "bg-phone-primary" : "bg-phone-muted"}`}
+                          className={`size-1.5 rounded-full ${capture.state === "live" ? "bg-phone-primary" : "bg-phone-muted"}`}
                         />{" "}
-                        {consoleRegistered ? "مسجّل على الآيفون" : "غير مربوط"}
+                        {CAPTURE_LABEL[capture.state]}
                       </p>
                     </div>
                     <ConsoleArt />
                   </div>
-                  {setupIp && (
+                  {setupIp && consoleRegistered && (
                     <p className="px-5 pb-3 text-[11px] text-phone-muted">
-                      {consoleRegistered ? "تم التسجيل وحفظ المفاتيح بأمان" : "دليل الإعداد مكتمل"}{" "}
-                      · <span dir="ltr">{setupIp}</span>
-                      <br />
-                      {consoleRegistered
-                        ? "لا يوجد بث PS5 نشط؛ الترجمة بالكاميرا."
-                        : "البث والربط الفعلي في PS Remote Play."}
+                      مقترن بالرقم على هذا الآيفون · <span dir="ltr">{setupIp}</span>
                     </p>
                   )}
                   <div className="px-5 pb-5">
@@ -291,7 +288,7 @@ export function PhoneFlow({
                       className="h-12 w-full"
                       onClick={() => setScreen("wizard")}
                     >
-                      {setupIp ? "راجع ربط البلايستيشن" : "اربط البلايستيشن"}
+                      {consoleRegistered ? "راجع إقران البلايستيشن" : "اربط البلايستيشن"}
                       <ArrowLeft />
                     </Button>
                   </div>

@@ -11,18 +11,21 @@ workflows:
       vars:
         MZGTA_NATIVE_VIEW: phone
     scripts:
-      - name: Install dependencies
+      - &install_deps
+        name: Install dependencies
         script: |
           set -eu
           rm -f package-lock.json
           npm install --legacy-peer-deps --no-audit --no-fund
-      - name: Build web app and prepare native shell
+      - &build_web
+        name: Build web app and prepare native shell
         script: |
           set -eu
           python3 scripts/prepare-source-offer.py
           npm run build
           node scripts/prepare-capacitor.mjs
-      - name: Generate iOS and install native PS5 discovery and registration
+      - &generate_ios
+        name: Generate iOS and install native PS5 discovery and registration
         script: |
           set -eu
           if [ ! -d ios ]; then npx cap add ios; fi
@@ -87,6 +90,41 @@ workflows:
     artifacts:
       - build/ipa/MZGTA.ipa
       - build/ios/MZGTA-build.xcresult
+
+  # Installable iPhone build. Needs a paid Apple Developer account and the
+  # Codemagic group "appstore_credentials" (APP_STORE_CONNECT_ISSUER_ID,
+  # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY,
+  # CERTIFICATE_PRIVATE_KEY). In Apple's portal, enable the App Group
+  # group.com.mzgta.app on both IDs and request the multicast entitlement.
+  ios-ipa-signed:
+    name: MZGTA iPhone — signed development IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 22
+      xcode: "16.4"
+      groups:
+        - appstore_credentials
+      vars:
+        MZGTA_NATIVE_VIEW: phone
+    scripts:
+      - *install_deps
+      - *build_web
+      - *generate_ios
+      - name: Fetch signing files for app and subtitle extension
+        script: |
+          set -eu
+          keychain initialize
+          app-store-connect fetch-signing-files "com.mzgta.app" --type IOS_APP_DEVELOPMENT --create
+          app-store-connect fetch-signing-files "com.mzgta.app.MZGTABroadcast" --type IOS_APP_DEVELOPMENT --create
+          keychain add-certificates
+          xcode-project use-profiles --project ios/App/App.xcodeproj
+      - name: Build signed MZGTA.ipa
+        script: |
+          set -eu
+          xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App --config Release
+    artifacts:
+      - build/ios/ipa/*.ipa
 
   android-apk:
     name: MZGTA Android TV — debug APK

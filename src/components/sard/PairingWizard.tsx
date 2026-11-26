@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  Check,
   ExternalLink,
-  Gamepad2,
   Loader2,
   Monitor,
   RefreshCw,
@@ -12,7 +10,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
 import { consoleAddress, pairingPin } from "@/lib/phone-storage";
 import { ConsoleArt } from "./ConsoleArt";
 import {
@@ -36,13 +33,11 @@ export function PairingWizard({
   const [device, setDevice] = useState("ps5");
   const [ip, setIp] = useState("");
   const [pin, setPin] = useState("");
-  const [hidden, setHidden] = useState(false);
   const [native, setNative] = useState(false);
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [accountId, setAccountId] = useState("");
-  const [registered, setRegistered] = useState(false);
   useEffect(() => {
     setNative(nativePS5Available());
   }, []);
@@ -68,9 +63,13 @@ export function PairingWizard({
             ? native
               ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الصحيح."
               : "أدخل رقم الإقران المكوّن من 8 أرقام."
-            : step === 4
-              ? "فعّل الخيار أولاً للمتابعة."
-              : "اختر PlayStation PS5 للمتابعة.",
+            : "اختر PlayStation PS5 للمتابعة.",
+      );
+      return;
+    }
+    if (step === 2 && !native) {
+      setError(
+        "المتصفح لا يستطيع الاتصال بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون، والترجمة تتم بقراءة شاشة PS Remote Play.",
       );
       return;
     }
@@ -87,8 +86,7 @@ export function PairingWizard({
           throw new Error("الجهاز ما استجاب على هذا العنوان. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi.");
         const existing = await getConsoleRegistration(target).catch(() => null);
         if (existing?.registered) {
-          setRegistered(true);
-          setStep(4);
+          onComplete(target, true);
         } else setStep(3);
       } catch (e) {
         setError(e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
@@ -103,10 +101,9 @@ export function PairingWizard({
       try {
         const result = await registerConsole({ ip: ip.trim(), pin, accountId: accountId.trim() });
         if (!result.registered) throw new Error("registration-failed");
-        setRegistered(true);
         setPin("");
         setAccountId("");
-        setStep(4);
+        onComplete(ip.trim(), true);
       } catch {
         setError(
           "لم ينجح تسجيل البلايستيشن. تحقق من رقم الإقران الحالي ومعرّف الحساب وإعدادات اللعب عن بُعد والشبكة.",
@@ -114,10 +111,6 @@ export function PairingWizard({
       } finally {
         setBusy(false);
       }
-    } else if (step === 5) {
-      setPin("");
-      setAccountId("");
-      onComplete(ip.trim(), registered);
     } else {
       setError("");
       setStep(step + 1);
@@ -127,8 +120,6 @@ export function PairingWizard({
     "وش نوع جهازك؟",
     "اختر جهازك",
     "اكتب رقم الإقران",
-    "أخفِ رسالة الاتصال",
-    "الحين ادخل بحسابك الأساسي اللي بتلعب فيه",
   ];
   const valid =
     step === 1
@@ -138,9 +129,7 @@ export function PairingWizard({
         : step === 3
           ? pairingPin.safeParse(pin).success &&
             (!native || accountIdSchema.safeParse(accountId).success)
-          : step === 4
-            ? hidden
-            : true;
+          : false;
 
   return (
     <div className="flex min-h-[610px] flex-col">
@@ -156,11 +145,11 @@ export function PairingWizard({
         </Button>
         <span className="text-xs text-phone-muted">ربط البلايستيشن</span>
         <span className="text-xs text-phone-primary" dir="ltr">
-          {step} / 5
+          {step} / 3
         </span>
       </div>
-      <div className="mb-7 flex gap-1.5" aria-label={`الخطوة ${step} من 5`}>
-        {[1, 2, 3, 4, 5].map((n) => (
+      <div className="mb-7 flex gap-1.5" aria-label={`الخطوة ${step} من 3`}>
+        {[1, 2, 3].map((n) => (
           <div
             key={n}
             className={`h-1 flex-1 rounded-full ${n <= step ? "bg-phone-primary" : "bg-phone-border"}`}
@@ -332,51 +321,6 @@ export function PairingWizard({
           </Button>
         </div>
       )}
-      {step === 4 && (
-        <div className="space-y-5">
-          <div className="flex justify-center py-8">
-            <Monitor className="size-20 text-phone-primary" strokeWidth={1} />
-          </div>
-          <p className="text-sm leading-7 text-phone-muted">
-            إذا ظهر الخيار على جهازك، فعّل إخفاء رسالة حالة اتصال اللعب عن بُعد. قد يختلف توفره حسب
-            إصدار النظام.
-          </p>
-          <div className="phone-card flex items-center justify-between gap-4 p-4">
-            <label htmlFor="hide-popup" className="text-sm leading-6">
-              <span dir="ltr">Hide Remote Play Connection Status Pop-Up</span>
-              <span className="mt-2 block text-xs text-phone-muted">
-                تم الإخفاء، أو الخيار غير متاح عندي
-              </span>
-            </label>
-            <Switch
-              id="hide-popup"
-              checked={hidden}
-              onCheckedChange={setHidden}
-              className="data-[state=checked]:bg-phone-primary"
-              dir="ltr"
-            />
-          </div>
-        </div>
-      )}
-      {step === 5 && (
-        <div className="space-y-6">
-          <div className="flex justify-center py-5">
-            <Gamepad2 className="size-20 text-phone-primary" strokeWidth={1} />
-          </div>
-          {["اضغط زر PS", "تبديل المستخدم Switch User", "ادخل بحسابك الأساسي"].map((text, i) => (
-            <div key={text} className="flex items-center gap-4 border-b border-phone-border pb-5">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-phone-primary/10 text-sm text-phone-primary">
-                {i + 1}
-              </span>
-              <span className="text-sm">{text}</span>
-            </div>
-          ))}
-          <p className="text-xs leading-6 text-phone-muted">
-            اتبع هذه الخطوات إذا كان إعداد Remote Play عندك يسمح بتبديل المستخدم؛ وإلا استخدم حساب
-            اللعب نفسه.
-          </p>
-        </div>
-      )}
       <div className="mt-auto pt-8">
         {error && (
           <p role="alert" className="mb-3 text-xs leading-6 text-destructive">
@@ -386,16 +330,16 @@ export function PairingWizard({
         <Button
           variant="phone"
           className="h-12 w-full"
-          disabled={busy}
+          disabled={busy || (step >= 2 && !native)}
           onClick={() => void advance()}
         >
-          {["التالي", "اتصل", "اربط", "خفيتها", "دخلت"][step - 1]}{" "}
-          {busy ? <Loader2 className="animate-spin" /> : step === 5 ? <Check /> : <ArrowLeft />}
+          {["التالي", "اتصل", "اربط"][step - 1]}{" "}
+          {busy ? <Loader2 className="animate-spin" /> : <ArrowLeft />}
         </Button>
         <p className="mt-3 text-center text-[11px] text-phone-muted">
           {native
-            ? "تسجيل PS5 أصلي · الترجمة بالكاميرا · البث في PS Remote Play"
-            : "دليل إعداد · الاتصال الفعلي في PS Remote Play"}
+            ? "إقران PS5 بالرقم · الترجمة تُقرأ من شاشة PS Remote Play"
+            : "الاتصال بـ PS5 غير ممكن من المتصفح"}
         </p>
       </div>
     </div>

@@ -1,15 +1,8 @@
-import { useEffect, useState } from "react";
-import { Check, ExternalLink, Loader2, Radio } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, Loader2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { readLocal, saveLocal } from "@/lib/phone-storage";
-import {
-  captureState,
-  getCaptureStatus,
-  nativeCaptureAvailable,
-  startScreenCapture,
-  type CaptureStatus,
-  type RegionPreset,
-} from "@/lib/remote-play-capture";
+import { startScreenCapture, type RegionPreset } from "@/lib/remote-play-capture";
+import { CAPTURE_LABEL, useCaptureStatus } from "@/lib/use-capture-status";
 
 const STEPS = [
   { id: "account", title: "أنشئ حساب PSN ثانوي", body: "من موقع سوني الرسمي. لا تكتب كلمة مرور PSN داخل MZGTA أبداً.", link: "https://my.account.sony.com/create-account/" },
@@ -19,39 +12,11 @@ const STEPS = [
   { id: "app", title: "ادخل بالحساب الثانوي في تطبيق PS Remote Play", body: "على الآيفون، وأكمل الربط داخل تطبيق سوني الرسمي.", link: "https://apps.apple.com/app/ps-remote-play/id1436192460" },
 ] as const;
 
-const STATE_LABEL = {
-  live: "الالتقاط يعمل ويقرأ الشاشة",
-  waiting: "البث بدأ، بانتظار إطارات",
-  paused: "الالتقاط متوقف مؤقتاً",
-  stopped: "الالتقاط غير مفعّل",
-} as const;
-
 export function RemotePlayCapture({ room, paired }: { room: string | null; paired: boolean }) {
-  const [done, setDone] = useState<string[]>([]);
   const [preset, setPreset] = useState<RegionPreset>("bottom");
-  const [status, setStatus] = useState<CaptureStatus>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const native = nativeCaptureAvailable();
-
-  useEffect(() => {
-    void readLocal("remote-play-steps").then((v) => {
-      if (Array.isArray(v)) setDone(v.filter((x): x is string => typeof x === "string"));
-    });
-  }, []);
-  useEffect(() => {
-    if (!native) return;
-    const poll = () => void getCaptureStatus().then(setStatus).catch(() => {});
-    poll();
-    const t = setInterval(poll, 2000);
-    return () => clearInterval(t);
-  }, [native]);
-
-  const toggle = (id: string) => {
-    const next = done.includes(id) ? done.filter((x) => x !== id) : [...done, id];
-    setDone(next);
-    void saveLocal("remote-play-steps", next);
-  };
+  const { native, status, state } = useCaptureStatus();
   const start = async () => {
     setError("");
     if (!room || !paired) return setError("اربط التلفزيون أولاً حتى تصله الترجمة.");
@@ -64,7 +29,6 @@ export function RemotePlayCapture({ room, paired }: { room: string | null; paire
       setBusy(false);
     }
   };
-  const state = captureState(status);
 
   return (
     <article className="phone-card p-5">
@@ -76,15 +40,9 @@ export function RemotePlayCapture({ room, paired }: { room: string | null; paire
       <ol className="mt-4 space-y-2">
         {STEPS.map((s, i) => (
           <li key={s.id} className="flex gap-3 rounded-xl border border-phone-border p-3">
-            <button
-              type="button"
-              aria-pressed={done.includes(s.id)}
-              aria-label={`تم: ${s.title}`}
-              onClick={() => toggle(s.id)}
-              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border ${done.includes(s.id) ? "border-phone-primary bg-phone-primary text-phone-primary-foreground" : "border-phone-border text-phone-muted"}`}
-            >
-              {done.includes(s.id) ? <Check className="size-3.5" /> : <span className="text-[10px]">{i + 1}</span>}
-            </button>
+            <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-phone-border text-[10px] text-phone-muted">
+              {i + 1}
+            </span>
             <div className="min-w-0 text-xs leading-relaxed">
               <p className="font-semibold">{s.title}</p>
               <p className="text-phone-muted">{s.body}</p>
@@ -110,8 +68,10 @@ export function RemotePlayCapture({ room, paired }: { room: string | null; paire
             {busy ? <Loader2 className="animate-spin" /> : <Radio />} ابدأ التقاط الشاشة
           </Button>
           <p role="status" className="text-xs text-phone-muted">
-            <span className={state === "live" ? "text-phone-primary" : ""}>{STATE_LABEL[state]}</span>
-            {status.lastArabic && <><br />آخر ترجمة: {status.lastArabic}</>}
+            <span className={state === "live" ? "text-phone-primary" : ""}>{CAPTURE_LABEL[state]}</span>
+            {status.lastRead && <><br />آخر نص مقروء: <span dir="ltr">{status.lastRead}</span></>}
+            {status.lastArabic && <><br />آخر ترجمة أُرسلت للتلفزيون: {status.lastArabic}</>}
+            {state !== "stopped" && <><br />أُرسل للتلفزيون: {status.sentCount ?? 0} سطر</>}
             {status.error === "translation" && <><br />تعذّرت ترجمة آخر سطر.</>}
             {status.error === "tv" && <><br />تعذّر إرسال آخر سطر للتلفزيون.</>}
           </p>
