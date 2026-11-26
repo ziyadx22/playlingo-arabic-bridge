@@ -91,13 +91,15 @@ workflows:
       - build/ipa/MZGTA.ipa
       - build/ios/MZGTA-build.xcresult
 
-  # Installable iPhone build. Needs a paid Apple Developer account and the
-  # Codemagic group "appstore_credentials" (APP_STORE_CONNECT_ISSUER_ID,
-  # APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_PRIVATE_KEY,
-  # CERTIFICATE_PRIVATE_KEY). In Apple's portal, enable the App Group
-  # group.com.mzgta.app on both IDs and request the multicast entitlement.
-  ios-ipa-signed:
-    name: MZGTA iPhone — signed development IPA
+  # Signed App Store build uploaded to TestFlight. Needs a paid Apple Developer
+  # account and the Codemagic group "appstore_credentials" with
+  # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
+  # APP_STORE_CONNECT_PRIVATE_KEY and CERTIFICATE_PRIVATE_KEY. Both App IDs
+  # need the App Group group.com.mzgta.app; the app ID also needs Apple's
+  # approved multicast networking entitlement. Upload happens only after a
+  # successful signed build (Codemagic publishing step).
+  ios-testflight:
+    name: MZGTA iPhone — signed TestFlight build
     instance_type: mac_mini_m2
     max_build_duration: 60
     environment:
@@ -111,20 +113,39 @@ workflows:
       - *install_deps
       - *build_web
       - *generate_ios
-      - name: Fetch signing files for app and subtitle extension
+      - name: Check Apple credentials
+        script: |
+          set -eu
+          for v in APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_PRIVATE_KEY CERTIFICATE_PRIVATE_KEY; do
+            eval "val=\${$v:-}"
+            [ -n "$val" ] || { echo "Missing $v in Codemagic group appstore_credentials"; exit 1; }
+          done
+      - name: Fetch App Store signing files for app and subtitle extension
         script: |
           set -eu
           keychain initialize
-          app-store-connect fetch-signing-files "com.mzgta.app" --type IOS_APP_DEVELOPMENT --create
-          app-store-connect fetch-signing-files "com.mzgta.app.MZGTABroadcast" --type IOS_APP_DEVELOPMENT --create
+          app-store-connect fetch-signing-files "com.mzgta.app" --type IOS_APP_STORE --create
+          app-store-connect fetch-signing-files "com.mzgta.app.MZGTABroadcast" --type IOS_APP_STORE --create
           keychain add-certificates
           xcode-project use-profiles --project ios/App/App.xcodeproj
+      - name: Set unique build number for TestFlight
+        script: |
+          set -eu
+          (cd ios/App && agvtool new-version -all "${BUILD_NUMBER:-1}")
       - name: Build signed MZGTA.ipa
         script: |
           set -eu
           xcode-project build-ipa --project ios/App/App.xcodeproj --scheme App --config Release
+          ls build/ios/ipa/*.ipa
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
 
   android-apk:
     name: MZGTA Android TV — debug APK
