@@ -1,0 +1,112 @@
+name: Build MZGTA Android TV APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Java & Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+
+      - name: Create Native Android TV Wrapper
+        run: |
+          mkdir -p app/src/main/java/com/mzgta/tv app/src/main/res/drawable app/src/main/res/values
+          cat << 'EOF' > settings.gradle
+          rootProject.name = "MZGTA"
+          include ':app'
+          EOF
+          cat << 'EOF' > build.gradle
+          buildscript {
+              repositories { google(); mavenCentral() }
+              dependencies { classpath 'com.android.tools.build:gradle:8.2.2' }
+          }
+          allprojects { repositories { google(); mavenCentral() } }
+          EOF
+          cat << 'EOF' > app/build.gradle
+          apply plugin: 'com.android.application'
+          android {
+              namespace 'com.mzgta.tv'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.mzgta.tv"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              buildTypes {
+                  release { minifyEnabled false }
+              }
+          }
+          EOF
+          cat << 'EOF' > app/src/main/res/drawable/tv_banner.xml
+          <vector xmlns:android="http://android.com"
+              android:width="320dp" android:height="180dp"
+              android:viewportWidth="320" android:viewportHeight="180">
+              <path android:fillColor="#060B19" android:pathData="M0,0h320v180h-320z"/>
+              <path android:strokeColor="#00F0FF" android:strokeWidth="4" android:pathData="M110,45 L210,45 L210,135 L110,135 Z"/>
+          </vector>
+          EOF
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://android.com">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-feature android:name="android.software.leanback" android:required="false" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+              <application
+                  android:label="MZGTA"
+                  android:icon="@drawable/tv_banner"
+                  android:banner="@drawable/tv_banner"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:screenOrientation="landscape">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+          cat << 'EOF' > app/src/main/java/com/mzgta/tv/MainActivity.java
+          package com.mzgta.tv;
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          public class MainActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().getDecorView().setSystemUiVisibility(
+                      View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                  );
+                  WebView wv = new WebView(this);
+                  WebSettings s = wv.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  wv.setWebViewClient(new WebViewClient());
+                  wv.loadUrl("https://lovable.app");
+                  setContentView(wv);
+              }
+          }
+          EOF
+          gradle wrapper --gradle-version 8.5
+          ./gradlew assembleDebug
+
+      - name: Release TV APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tv-v${{ github.run_number }}
+          files: app/build/outputs/apk/debug/app-debug.apk
