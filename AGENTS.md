@@ -40,7 +40,7 @@ use the editor.
 - Keep the phone navigation and setup guide separate from capture/translation controls, so navigation cannot misrepresent console connectivity.
 - Download the independent licensed dictionary into version-keyed IndexedDB batches; expose ready metadata only after all entries commit and lazy-load its lookup map, keeping bulk vocabulary out of startup bundles.
 - Translate exact gaming phrases locally, prefer cloud for composed sentences online, and mark unknown offline tokens explicitly; never claim universal coverage or full Arabic grammar from dictionary substitution.
-- Browser PS5 setup remains an official Remote Play guide; iOS uses the registered Capacitor discovery/Chiaki registration plugin, and registration never implies an active PS5 stream.
+- PS5 pairing selects only consoles found by local discovery (no manual IP entry, no IP-only success, no skipping the PIN for saved keys); success is shown only after Chiaki registration with the 8-digit PIN succeeds and keys are stored in Keychain. Registration never implies an active stream.
 - Never persist console PINs/account IDs in browser storage or expose/log registration keys; save keys only in device-bound iOS Keychain after successful protocol validation.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
 - Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.

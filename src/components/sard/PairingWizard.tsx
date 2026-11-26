@@ -15,8 +15,6 @@ import { ConsoleArt } from "./ConsoleArt";
 import {
   accountIdSchema,
   discoverConsoles,
-  getConsoleRegistration,
-  registrationInput,
   nativePS5Available,
   registerConsole,
   type DiscoveredConsole,
@@ -31,7 +29,8 @@ export function PairingWizard({
 }) {
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState("ps5");
-  const [ip, setIp] = useState("");
+  const [selected, setSelected] = useState<DiscoveredConsole | null>(null);
+  const ip = selected?.ip ?? "";
   const [pin, setPin] = useState("");
   const [native, setNative] = useState(false);
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
@@ -48,7 +47,7 @@ export function PairingWizard({
       setConsoles((await discoverConsoles()).consoles.filter((item) => item.type === "PS5"));
     } catch {
       setError(
-        "تعذّر البحث. اسمح بالشبكة المحلية، وتأكد من Wi-Fi وصلاحية البث المحلي في النسخة المثبتة. يمكنك إدخال العنوان يدوياً.",
+        "تعذّر البحث. اسمح بالشبكة المحلية، وتأكد من Wi-Fi وصلاحية البث المحلي في النسخة المثبتة.",
       );
     } finally {
       setBusy(false);
@@ -58,7 +57,7 @@ export function PairingWizard({
     if (!valid) {
       setError(
         step === 2
-          ? "اختر جهاز PS5 من القائمة أو أدخل عنوان IPv4 صحيحاً."
+          ? "ابحث عن أجهزة PS5 واختر جهازك من القائمة."
           : step === 3
             ? native
               ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الصحيح."
@@ -77,17 +76,17 @@ export function PairingWizard({
       setBusy(true);
       setError("");
       try {
-        const target = ip.trim();
-        if (!registrationInput.shape.ip.safeParse(target).success)
-          throw new Error("لازم يكون العنوان داخل شبكتك المحلية (192.168.x.x أو 10.x.x.x أو 172.16-31.x.x).");
+        // Re-run discovery so the chosen console is confirmed present right now.
+        // Discovery only identifies the console; pairing always needs the PIN.
         const found = (await discoverConsoles()).consoles.filter((c) => c.type === "PS5");
         setConsoles(found);
-        if (!found.some((c) => c.ip === target))
-          throw new Error("الجهاز ما استجاب على هذا العنوان. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi.");
-        const existing = await getConsoleRegistration(target).catch(() => null);
-        if (existing?.registered) {
-          onComplete(target, true);
-        } else setStep(3);
+        const match = found.find((c) => c.hostId === selected?.hostId);
+        if (!match) {
+          setSelected(null);
+          throw new Error("الجهاز المختار ما عاد يستجيب. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi، ثم ابحث مرة ثانية.");
+        }
+        setSelected(match);
+        setStep(3);
       } catch (e) {
         setError(e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
       } finally {
@@ -99,11 +98,11 @@ export function PairingWizard({
       setBusy(true);
       setError("");
       try {
-        const result = await registerConsole({ ip: ip.trim(), pin, accountId: accountId.trim() });
+        const result = await registerConsole({ ip, pin, accountId: accountId.trim() });
         if (!result.registered) throw new Error("registration-failed");
         setPin("");
         setAccountId("");
-        onComplete(ip.trim(), true);
+        onComplete(result.ip, true);
       } catch {
         setError(
           "لم ينجح تسجيل البلايستيشن. تحقق من رقم الإقران الحالي ومعرّف الحساب وإعدادات اللعب عن بُعد والشبكة.",
@@ -125,7 +124,7 @@ export function PairingWizard({
     step === 1
       ? device === "ps5"
       : step === 2
-        ? consoleAddress.safeParse(ip).success
+        ? selected !== null && consoleAddress.safeParse(ip).success
         : step === 3
           ? pairingPin.safeParse(pin).success &&
             (!native || accountIdSchema.safeParse(accountId).success)
@@ -211,10 +210,10 @@ export function PairingWizard({
                 <Button
                   key={console.hostId}
                   variant="outline"
-                  className={`h-auto w-full justify-between py-3 ${ip.trim() === console.ip ? "border-phone-primary" : "border-phone-border"}`}
-                  aria-pressed={ip.trim() === console.ip}
+                  className={`h-auto w-full justify-between py-3 ${selected?.hostId === console.hostId ? "border-phone-primary" : "border-phone-border"}`}
+                  aria-pressed={selected?.hostId === console.hostId}
                   onClick={() => {
-                    setIp(console.ip);
+                    setSelected(console);
                     setError("");
                   }}
                 >
@@ -230,35 +229,15 @@ export function PairingWizard({
               ))}
               {!busy && !consoles.length && (
                 <p className="text-xs text-phone-muted">
-                  شغّل PS5 وفعّل اللعب عن بُعد، ثم ابحث أو أدخل العنوان يدوياً.
+                  شغّل PS5 وفعّل اللعب عن بُعد، ثم اضغط البحث.
                 </p>
               )}
             </>
           )}
-          <p className="text-sm leading-7 text-phone-muted">
+          <p className="text-xs leading-6 text-phone-muted">
             {native
-              ? "لإدخال العنوان يدوياً، افتح في PS5:"
-              : "المتصفح ما يقدر يبحث عن أجهزة الشبكة. افتح في PS5:"}{" "}
-            الإعدادات ← الشبكة ← حالة الاتصال ← عرض حالة الاتصال، وأدخل عنوان IP.
-          </p>
-          <label className="block text-sm">
-            أدخل العنوان
-            <input
-              autoFocus
-              aria-label="عنوان IP"
-              value={ip}
-              onChange={(e) => setIp(e.target.value)}
-              placeholder="192.168.0.192"
-              inputMode="decimal"
-              dir="ltr"
-              className="phone-input mt-3"
-            />
-          </label>
-          {ip && !valid && <p className="text-xs text-destructive">أدخل عنوان IPv4 صحيحاً.</p>}
-          <p className="text-xs text-phone-muted">
-            {native
-              ? "سيُستخدم العنوان للتسجيل المباشر في الخطوة التالية."
-              : "نسخة المتصفح لا تستطيع الاتصال بالبلايستيشن: المتصفحات تمنع البحث في الشبكة المحلية وبروتوكول اللعب عن بُعد. الربط الفعلي يتم من تطبيق MZGTA المثبت على الآيفون أو من PS Remote Play الرسمي."}
+              ? "البحث يحدد أجهزة PS5 في شبكتك فقط. الربط يحتاج رقم الإقران الرسمي من الجهاز في الخطوة التالية."
+              : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
           </p>
         </div>
       )}
