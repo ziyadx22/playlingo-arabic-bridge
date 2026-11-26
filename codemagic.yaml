@@ -28,6 +28,36 @@ workflows:
           if [ ! -d ios ]; then npx cap add ios; fi
           npx cap sync ios
           python3 scripts/configure-native.py ios
+          ruby <<'RUBY'
+          require "xcodeproj"
+          proj = Xcodeproj::Project.open("ios/App/App.xcodeproj")
+          target = proj.targets.find { |item| item.name == "App" }
+          abort "App target not found" unless target
+          group = proj.main_group.find_subpath("App", true)
+          sources = Dir.glob("ios/App/App/**/*.{swift,m,c}").reject { |f| f.end_with?("AppDelegate.swift") }
+          if sources.any? { |f| File.extname(f) == ".c" }
+            header = "ios/App/App/App-Bridging-Header.h"
+            File.write(header, "#pragma once\n#import \"Native/MZGTA-Bridging-Header.h\"\n")
+            target.build_configurations.each do |config|
+              config.build_settings["SWIFT_OBJC_BRIDGING_HEADER"] = "App/App-Bridging-Header.h"
+            end
+          end
+          Dir.glob("ios/App/App/**/*.{swift,m,c,h}").sort.each do |file|
+            next if file.end_with?("AppDelegate.swift")
+            path = File.expand_path(file)
+            ref = proj.files.find { |item| item.real_path.to_s == path } || group.new_file(path)
+            next if File.extname(file) == ".h"
+            target.add_file_references([ref]) unless target.source_build_phase.files_references.include?(ref)
+            if File.extname(file) == ".c" && file.include?("/Native/chiaki/")
+              build_file = target.source_build_phase.files.find { |item| item.file_ref == ref }
+              build_file.settings ||= {}
+              flags = build_file.settings.fetch("COMPILER_FLAGS", "").split
+              flags |= ["-DCHIAKI_APPLE_CRYPTO=1"]
+              build_file.settings["COMPILER_FLAGS"] = flags.join(" ")
+            end
+          end
+          proj.save
+          RUBY
           plutil -lint ios/App/App/Info.plist ios/App/App.xcodeproj/project.pbxproj ios/App/App/MZGTA.entitlements
           sh scripts/test-remote-play-crypto.sh
           sips -z 1024 1024 public/icons/mzgta-512.png --out ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png

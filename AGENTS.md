@@ -45,4 +45,5 @@ use the editor.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
 - Native builds are generated online Capacitor shells loading the published HTTPS origin; keep server functions hosted and prepare a dist fallback rather than packaging Worker output as client assets.
 - Generate native projects in CI, apply idempotent platform patches after sync, and keep signing credentials and generated native output out of source deliveries.
+- After iOS native copying, reconcile source/header references with xcodeproj by resolved path and configure the App bridging header in every target configuration; this ensures compilation without duplicate source entries.
 - Compile the pinned registration-only Chiaki source in the iOS App target with Apple crypto primitives; ship license/source notices and require physical-device verification plus multicast-enabled signing for UDP discovery.
