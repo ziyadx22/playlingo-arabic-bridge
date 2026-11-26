@@ -107,6 +107,7 @@ workflows:
             SWIFT_VERSION=5.0 \
             build
           test -d build/ios/Build/Products/Release-iphoneos/App.app
+          test -d build/ios/Build/Products/Release-iphoneos/App.app/PlugIns/MZGTABroadcast.appex
           mkdir -p build/ipa/Payload
           cp -R build/ios/Build/Products/Release-iphoneos/App.app build/ipa/Payload/
           (cd build/ipa && zip -qry MZGTA.ipa Payload)
