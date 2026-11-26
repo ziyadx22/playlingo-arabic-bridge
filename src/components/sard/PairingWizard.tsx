@@ -16,9 +16,13 @@ import {
   accountIdSchema,
   discoverConsoles,
   nativePS5Available,
+  ps5PairingDisabledInBuild,
   registerConsole,
   type DiscoveredConsole,
 } from "@/lib/ps5-remote-play";
+
+const PAIRING_OFF =
+  "إقران PS5 غير متاح في هذا الإصدار. ترجمة الشاشة من PS Remote Play تعمل بشكل طبيعي.";
 
 export function PairingWizard({
   onClose,
@@ -33,12 +37,14 @@ export function PairingWizard({
   const ip = selected?.ip ?? "";
   const [pin, setPin] = useState("");
   const [native, setNative] = useState(false);
+  const [buildOff, setBuildOff] = useState(false);
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [accountId, setAccountId] = useState("");
   useEffect(() => {
     setNative(nativePS5Available());
+    setBuildOff(ps5PairingDisabledInBuild());
   }, []);
   const scan = async () => {
     setBusy(true);
@@ -64,6 +70,10 @@ export function PairingWizard({
               : "أدخل رقم الإقران المكوّن من 8 أرقام."
             : "اختر PlayStation PS5 للمتابعة.",
       );
+      return;
+    }
+    if (step === 2 && buildOff) {
+      setError(PAIRING_OFF);
       return;
     }
     if (step === 2 && !native) {
@@ -193,6 +203,14 @@ export function PairingWizard({
           <div className="flex justify-center py-3">
             <ConsoleArt large />
           </div>
+          {buildOff && (
+            <p role="status" className="phone-card p-4 text-sm leading-7">
+              {PAIRING_OFF}
+              <span className="mt-1 block text-xs text-phone-muted" dir="ltr">
+                PS5 pairing not available in this version
+              </span>
+            </p>
+          )}
           <div className="flex items-center gap-2 text-sm text-phone-primary">
             <Wifi className="size-4" /> نفس شبكة Wi-Fi
           </div>

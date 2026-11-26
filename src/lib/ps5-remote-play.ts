@@ -23,6 +23,14 @@ const plugin = registerPlugin<PS5RemotePlay>("PS5RemotePlay");
 export function nativePS5Available() {
   return Capacitor.getPlatform() === "ios" && Capacitor.isPluginAvailable("PS5RemotePlay");
 }
+/** Installed iPhone app built with PS5 pairing switched off (no multicast entitlement). */
+export function ps5PairingDisabledInBuild() {
+  return (
+    Capacitor.getPlatform() === "ios" &&
+    !Capacitor.isPluginAvailable("PS5RemotePlay") &&
+    Capacitor.isPluginAvailable("MZGTACapture")
+  );
+}
 export const accountIdSchema = z
   .string()
   .trim()

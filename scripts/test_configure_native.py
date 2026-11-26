@@ -4,6 +4,7 @@ import plistlib
 import tempfile
 import tarfile
 import unittest
+import unittest.mock
 import xml.etree.ElementTree as ET
 
 spec = importlib.util.spec_from_file_location("configure_native", Path(__file__).with_name("configure-native.py"))
@@ -70,6 +71,27 @@ class NativeConfigurationTests(unittest.TestCase):
             self.assertIn('customClass="MZGTABridgeViewController"', (root / "App/App/Base.lproj/Main.storyboard").read_text())
             with (root / "App/App/MZGTA.entitlements").open("rb") as file:
                 self.assertTrue(plistlib.load(file)["com.apple.developer.networking.multicast"])
+
+    def test_multicast_off_drops_only_the_multicast_entitlement(self):
+        with tempfile.TemporaryDirectory() as tmp, unittest.mock.patch.dict(native.os.environ, {"MZGTA_MULTICAST": "0"}):
+            root = Path(tmp)
+            template = Path(__file__).resolve().parent.parent / "node_modules/@capacitor/cli/assets/ios-spm-template.tar.gz"
+            with tarfile.open(template) as archive:
+                for member in archive.getmembers():
+                    if member.name.endswith(("project.pbxproj", "Main.storyboard", "App/Info.plist")):
+                        destination = root / member.name.lstrip("./")
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_bytes(archive.extractfile(member).read())
+            native.configure_ios(root)
+            native.configure_ios_plugin(root)
+            with (root / "App/App/MZGTA.entitlements").open("rb") as file:
+                entitlements = plistlib.load(file)
+            self.assertNotIn("com.apple.developer.networking.multicast", entitlements)
+            self.assertEqual(entitlements["com.apple.security.application-groups"], ["group.com.mzgta.app"])
+            with (root / "App/App/Info.plist").open("rb") as file:
+                self.assertIs(plistlib.load(file)["MZGTAPS5Pairing"], False)
+            self.assertIn("PS5RemotePlayPlugin.swift in Sources", (root / "App/App.xcodeproj/project.pbxproj").read_text())
+            self.assertTrue((root / "App/MZGTABroadcast/SampleHandler.swift").exists())
 
 
 if __name__ == "__main__":

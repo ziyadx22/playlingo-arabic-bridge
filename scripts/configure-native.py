@@ -1,5 +1,6 @@
 """Idempotent native configuration after cap add/sync. No signing credentials."""
 import argparse
+import os
 from pathlib import Path
 import plistlib
 import shutil
@@ -60,6 +61,11 @@ def configure_android(root):
     (resources / "tv_banner.xml").write_text(banner + "</vector>\n")
 
 
+def multicast_enabled():
+    """MZGTA_MULTICAST=0 builds without Apple's multicast entitlement; PS5 pairing code stays but is not registered."""
+    return os.environ.get("MZGTA_MULTICAST", "1") != "0"
+
+
 def configure_ios(root):
     path = root / "App/App/Info.plist"
     with path.open("rb") as file:
@@ -69,6 +75,7 @@ def configure_ios(root):
     info["NSSpeechRecognitionUsageDescription"] = "MZGTA converts spoken game dialogue into text for translation."
     info["NSLocalNetworkUsageDescription"] = "MZGTA discovers your PlayStation on Wi-Fi and registers Remote Play using the pairing PIN you enter."
     info["NSBonjourServices"] = sorted(set(info.get("NSBonjourServices", []) + ["_ps5._udp", "_ps4._udp"]))
+    info["MZGTAPS5Pairing"] = multicast_enabled()
     with path.open("wb") as file:
         plistlib.dump(info, file)
 
@@ -116,7 +123,10 @@ def configure_ios_plugin(root):
     xml = storyboard.read_text().replace('customClass="CAPBridgeViewController" customModule="Capacitor"', 'customClass="MZGTABridgeViewController" customModule="App" customModuleProvider="target"')
     storyboard.write_text(xml)
     with (root / "App/App/MZGTA.entitlements").open("wb") as file:
-        plistlib.dump({"com.apple.developer.networking.multicast": True, "com.apple.security.application-groups": ["group.com.mzgta.app"]}, file)
+        entitlements = {"com.apple.security.application-groups": ["group.com.mzgta.app"]}
+        if multicast_enabled():
+            entitlements["com.apple.developer.networking.multicast"] = True
+        plistlib.dump(entitlements, file)
     # The ReplayKit extension lives beside the App target; add-broadcast-extension.rb creates its target.
     shutil.copytree(Path(__file__).resolve().parent.parent / "ios-broadcast-extension", root / "App/MZGTABroadcast", dirs_exist_ok=True)
 
