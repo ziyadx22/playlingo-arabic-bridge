@@ -7,7 +7,7 @@ workflows:
     max_build_duration: 60
     environment:
       node: 22
-      xcode: "16.4"
+      xcode: "26.0"
       vars:
         MZGTA_NATIVE_VIEW: phone
     scripts:
@@ -37,7 +37,11 @@ workflows:
           target = proj.targets.find { |item| item.name == "App" }
           abort "App target not found" unless target
           target.build_configurations.each do |config|
-            config.build_settings["SWIFT_VERSION"] = "5.0"
+            settings = config.build_settings
+            settings["SWIFT_VERSION"] = "5.0"
+            settings["CLANG_ENABLE_MODULES"] = "YES"
+            settings["HEADER_SEARCH_PATHS"] = (["$(inherited)"] + Array(settings["HEADER_SEARCH_PATHS"]) + ["$(SRCROOT)/App/Native/chiaki/include"]).uniq
+            settings["CODE_SIGN_ENTITLEMENTS"] = "App/MZGTA.entitlements"
           end
           group = proj.main_group.find_subpath("App", true)
           sources = Dir.glob("ios/App/App/**/*.{swift,m,c}").reject { |f| f.end_with?("AppDelegate.swift") }
@@ -48,14 +52,32 @@ workflows:
               config.build_settings["SWIFT_OBJC_BRIDGING_HEADER"] = "App/App-Bridging-Header.h"
             end
           end
+          # A source path may occur only once in the App target, even if a
+          # previous generator used a different file-reference UUID.
+          registered = {}
+          target.source_build_phase.files.dup.each do |build_file|
+            ref = build_file.file_ref
+            next unless ref
+            path = ref.real_path.to_s
+            if registered.key?(path)
+              index = target.source_build_phase.files.index { |item| item.uuid == build_file.uuid }
+              target.source_build_phase.files.delete_at(index) if index
+              proj.objects_by_uuid.delete(build_file.uuid)
+            else
+              registered[path] = ref
+            end
+          end
           Dir.glob("ios/App/App/**/*.{swift,m,c,h}").sort.each do |file|
             next if file.end_with?("AppDelegate.swift")
             path = File.expand_path(file)
-            ref = proj.files.find { |item| item.real_path.to_s == path } || group.new_file(path)
+            ref = registered[path] || proj.files.find { |item| item.real_path.to_s == path } || group.new_file(path)
             next if File.extname(file) == ".h"
-            target.add_file_references([ref]) unless target.source_build_phase.files_references.include?(ref)
+            unless registered.key?(path)
+              target.add_file_references([ref])
+              registered[path] = ref
+            end
             if File.extname(file) == ".c" && file.include?("/Native/chiaki/")
-              build_file = target.source_build_phase.files.find { |item| item.file_ref == ref }
+              build_file = target.source_build_phase.files.find { |item| item.file_ref.real_path.to_s == path }
               build_file.settings ||= {}
               flags = build_file.settings.fetch("COMPILER_FLAGS", "").split
               flags |= ["-DCHIAKI_APPLE_CRYPTO=1"]
@@ -104,7 +126,7 @@ workflows:
     max_build_duration: 60
     environment:
       node: 22
-      xcode: "16.4"
+      xcode: "26.0"
       groups:
         - appstore_credentials
       vars:

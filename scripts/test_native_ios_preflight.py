@@ -17,6 +17,7 @@ class NativeIOSPreflightTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.native = self.root / "ios/App/App/Native"
         shutil.copytree(ROOT / "ios-native-plugin", self.native)
+        shutil.copytree(ROOT / "ios-broadcast-extension", self.root / "ios/App/MZGTABroadcast")
         (self.native.parent / "App-Bridging-Header.h").write_text('#import "Native/MZGTA-Bridging-Header.h"\n')
         self.bin = self.root / "bin"
         self.bin.mkdir()
@@ -44,7 +45,8 @@ if any(arg.endswith(os.environ.get("FAIL_SOURCE", "__none__")) for arg in args):
         result = self.run_preflight()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = [json.loads(line) for line in self.log.read_text().splitlines()]
-        for source in self.native.rglob("*"):
+        roots = [self.native, self.root / "ios/App/MZGTABroadcast"]
+        for source in [item for root in roots for item in root.rglob("*")]:
             if source.suffix not in [".swift", ".m", ".c"]:
                 continue
             relative = str(source.relative_to(self.root))
@@ -60,6 +62,11 @@ if any(arg.endswith(os.environ.get("FAIL_SOURCE", "__none__")) for arg in args):
 
     def test_stops_on_swift_compiler_failure(self):
         result = self.run_preflight("PS5RemotePlayPlugin.swift")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("preflight passed", result.stdout)
+
+    def test_stops_on_broadcast_swift_compiler_failure(self):
+        result = self.run_preflight("SampleHandler.swift")
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("preflight passed", result.stdout)
 

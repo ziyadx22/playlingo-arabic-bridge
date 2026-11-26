@@ -45,6 +45,9 @@ t = p.targets.find { |item| item.name == "App" }
 puts JSON.generate({sources: t.source_build_phase.files_references.map { |r| r.real_path.to_s },
   headers: t.build_configurations.map { |c| c.build_settings["SWIFT_OBJC_BRIDGING_HEADER"] },
   swift_versions: t.build_configurations.map { |c| c.build_settings["SWIFT_VERSION"] },
+  header_search_paths: t.build_configurations.map { |c| c.build_settings["HEADER_SEARCH_PATHS"] },
+  modules: t.build_configurations.map { |c| c.build_settings["CLANG_ENABLE_MODULES"] },
+  entitlements: t.build_configurations.map { |c| c.build_settings["CODE_SIGN_ENTITLEMENTS"] },
   flags: t.source_build_phase.files.select { |f| f.file_ref.path.end_with?(".c") }.map { |f| f.settings["COMPILER_FLAGS"] }})
 '''))
 
@@ -72,11 +75,33 @@ puts JSON.generate({sources: t.source_build_phase.files_references.map { |r| r.r
         self.assertGreaterEqual(len(versions), 2)
         self.assertTrue(all(version == "5.0" for version in versions))
 
-    def test_ios_workflow_uses_xcode_16(self):
-        ios_workflow = (ROOT / "codemagic.yaml").read_text().split("  android-apk:")[0]
-        version = re.search(r'^\s+xcode:\s*"([^"]+)"', ios_workflow, re.M)
-        self.assertIsNotNone(version)
-        self.assertEqual(version.group(1), "16.4")
+    def test_native_headers_modules_and_entitlements_are_configured_independently(self):
+        project = self.inspect_project()
+        self.assertTrue(all("$(SRCROOT)/App/Native/chiaki/include" in paths for paths in project["header_search_paths"]))
+        self.assertTrue(all(value == "YES" for value in project["modules"]))
+        self.assertTrue(all(value == "App/MZGTA.entitlements" for value in project["entitlements"]))
+
+    def test_registration_removes_duplicate_source_phase_entries(self):
+        self.run_ruby('''require "xcodeproj"
+p = Xcodeproj::Project.open("ios/App/App.xcodeproj")
+t = p.targets.find { |item| item.name == "App" }
+ref = t.source_build_phase.files_references.find { |item| item.real_path.to_s.end_with?("PS5RemotePlayPlugin.swift") }
+duplicate = p.new(Xcodeproj::Project::Object::PBXBuildFile)
+duplicate.file_ref = ref
+t.source_build_phase.files << duplicate
+p.save
+''')
+        before = self.inspect_project()["sources"]
+        self.assertEqual(sum(path.endswith("/PS5RemotePlayPlugin.swift") for path in before), 2)
+        self.run_ruby(RUBY)
+        after = self.inspect_project()["sources"]
+        self.assertEqual(sum(path.endswith("/PS5RemotePlayPlugin.swift") for path in after), 1)
+
+    def test_ios_workflows_use_xcode_supported_by_capacitor_8(self):
+        ios_workflows = (ROOT / "codemagic.yaml").read_text().split("  android-apk:")[0]
+        versions = re.findall(r'^\s+xcode:\s*"([^"]+)"', ios_workflows, re.M)
+        self.assertEqual(len(versions), 2)
+        self.assertTrue(all(tuple(map(int, version.split("."))) >= (26, 0) for version in versions))
 
 
 if __name__ == "__main__":

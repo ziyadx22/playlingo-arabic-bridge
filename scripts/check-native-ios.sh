@@ -10,7 +10,7 @@ trap 'rm -rf "$OUT"' EXIT
 test -f "$HEADER"
 
 # Run each unit through a loop: unlike find -exec, set -e propagates failures.
-find "$NATIVE" -type f -name '*.swift' > "$OUT/swift-files"
+find "$NATIVE" "$IOS_ROOT/App/MZGTABroadcast" -type f -name '*.swift' > "$OUT/swift-files"
 while IFS= read -r source; do
   xcrun --sdk iphoneos swiftc -frontend -parse -swift-version 5 \
     -sdk "$SDK" -target arm64-apple-ios15.0 "$source"
@@ -44,4 +44,4 @@ SWIFT
 xcrun --sdk iphoneos swiftc -typecheck -swift-version 5 \
   -sdk "$SDK" -target arm64-apple-ios15.0 \
   -import-objc-header "$HEADER" "$OUT/BridgeContract.swift"
-echo "Native Swift syntax, C/Objective-C, and Apple bridge preflight passed"
+echo "App and broadcast Swift syntax, C/Objective-C, and Apple bridge preflight passed"
