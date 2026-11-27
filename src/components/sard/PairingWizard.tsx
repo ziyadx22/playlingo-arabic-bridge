@@ -42,13 +42,14 @@ export function PairingWizard({
   const [step, setStep] = useState(1);
   const [device, setDevice] = useState("ps5");
   const [selected, setSelected] = useState<DiscoveredConsole | null>(null);
-  const ip = selected?.ip ?? "";
+  const [manualIp, setManualIp] = useState("");
+  const typedIp = privateIPv4.safeParse(manualIp.trim()).success ? manualIp.trim() : "";
+  const ip = selected?.ip ?? typedIp;
   const [pin, setPin] = useState("");
   const [native, setNative] = useState(false);
   const [bridge, setBridge] = useState<NativeBridgeStatus>("browser");
   const [inApp, setInApp] = useState(false);
   const [autoDiscovery, setAutoDiscovery] = useState(true);
-  const [manualIp, setManualIp] = useState("");
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -80,7 +81,7 @@ export function PairingWizard({
       setError(
         nativeErrorCode(e) === "LOCAL_NETWORK_DENIED"
           ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية."
-          : `ما فيه PS5 يرد على ${parsed.data}. تأكد إن الجهاز شغّال، واللعب عن بُعد مفعّل، والعنوان صحيح (الإعدادات ← الشبكة ← عرض حالة الاتصال).`,
+          : `ما فيه PS5 يرد على ${parsed.data}. تأكد إن الجهاز شغّال، واللعب عن بُعد مفعّل، والعنوان صحيح. إذا كانت شاشة «إقران الجهاز» ظاهرة على PS5 اضغط «اتصل» وأدخل الرقم المكوّن من 8 أرقام.`,
       );
     } finally {
       setBusy(false);
@@ -133,16 +134,24 @@ export function PairingWizard({
       try {
         // Ask the chosen console directly (unicast, no multicast needed) so it is
         // confirmed present right now. Pairing still always needs the PIN.
-        const found = (await probeConsole(ip)).consoles.filter((c) => c.type === "PS5");
-        const match = found.find((c) => c.hostId === selected?.hostId);
-        if (!match) {
+        // Ask the console directly first. Some PS5s ignore unicast search while
+        // showing the Link Device screen, so a typed IP may continue to the PIN
+        // step: Chiaki registration with the 8-digit PIN is the real check.
+        let match: DiscoveredConsole | undefined;
+        try {
+          const found = (await probeConsole(ip)).consoles.filter((c) => c.type === "PS5");
+          match = selected ? found.find((c) => c.hostId === selected.hostId) : found[0];
+        } catch (probeError) {
+          if (nativeErrorCode(probeError) === "LOCAL_NETWORK_DENIED") throw probeError;
+        }
+        if (!match && selected && !typedIp) {
           setSelected(null);
           throw new Error("الجهاز المختار ما عاد يستجيب. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi، ثم ابحث مرة ثانية.");
         }
-        setSelected(match);
+        setSelected(match ?? null);
         setStep(3);
       } catch (e) {
-        setError(e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
+        setError(nativeErrorCode(e) === "LOCAL_NETWORK_DENIED" ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية." : e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
       } finally {
         setBusy(false);
       }
@@ -178,7 +187,7 @@ export function PairingWizard({
     step === 1
       ? device === "ps5"
       : step === 2
-        ? selected !== null && consoleAddress.safeParse(ip).success
+        ? consoleAddress.safeParse(ip).success
         : step === 3
           ? pairingPin.safeParse(pin).success &&
             (!native || accountIdSchema.safeParse(accountId).success)
