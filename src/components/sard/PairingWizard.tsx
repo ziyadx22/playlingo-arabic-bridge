@@ -13,7 +13,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { consoleAddress, pairingPin } from "@/lib/phone-storage";
 import { ConsoleArt } from "./ConsoleArt";
 import {
-  accountIdSchema,
+  looksLikeOnlineId,
+  normalizeAccountId,
   discoverConsoles,
   nativePS5Available,
   getCapabilities,
@@ -64,6 +65,10 @@ export function PairingWizard({
         .then((caps) => setAutoDiscovery(caps.autoDiscovery))
         .catch(() => setAutoDiscovery(true));
   }, []);
+  useEffect(() => {
+    if (step === 3 && native && autoDiscovery && !consoles.length) void scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, native]);
   const findByAddress = async () => {
     const parsed = privateIPv4.safeParse(manualIp.trim());
     if (!parsed.success) {
@@ -93,7 +98,8 @@ export function PairingWizard({
     try {
       const found = (await discoverConsoles()).consoles.filter((item) => item.type === "PS5");
       setConsoles(found);
-      if (!found.length) setError("ما لقينا PS5 تلقائياً. تقدر تكتب عنوان IP الخاص بالجهاز يدوياً بالأسفل.");
+      if (found.length === 1) setSelected(found[0] ?? null);
+      if (!found.length) setError("ما لقينا PS5 تلقائياً. اكتب عنوان IP الخاص بالجهاز كبديل بالأسفل.");
     } catch (e) {
       if (nativeErrorCode(e) === "MULTICAST_UNAVAILABLE") {
         setAutoDiscovery(false);
@@ -111,11 +117,13 @@ export function PairingWizard({
     if (!valid) {
       setError(
         step === 2
-          ? "ابحث عن PS5 أو اكتب عنوان IP الخاص به، ثم اختر جهازك من القائمة."
-          : step === 3
-            ? native
-              ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الصحيح."
+          ? native && looksLikeOnlineId(accountId)
+            ? `«${accountId.trim()}» هو اسم المستخدم في PSN، والبلايستيشن يحتاج معرّف الحساب الرقمي (أرقام فقط أو Base64).`
+            : native
+              ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الرقمي."
               : "أدخل رقم الإقران المكوّن من 8 أرقام."
+          : step === 3
+            ? "ما تعرّفنا على PS5 تلقائياً. اكتب عنوان IP الخاص به كبديل."
             : "اختر PlayStation PS5 للمتابعة.",
       );
       return;
@@ -128,69 +136,44 @@ export function PairingWizard({
       );
       return;
     }
-    if (step === 2 && native) {
+    if (step === 3 && native) {
       setBusy(true);
       setError("");
       try {
-        // Ask the chosen console directly (unicast, no multicast needed) so it is
-        // confirmed present right now. Pairing still always needs the PIN.
-        // Ask the console directly first. Some PS5s ignore unicast search while
-        // showing the Link Device screen, so a typed IP may continue to the PIN
-        // step: Chiaki registration with the 8-digit PIN is the real check.
-        let match: DiscoveredConsole | undefined;
-        try {
-          const found = (await probeConsole(ip)).consoles.filter((c) => c.type === "PS5");
-          match = selected ? found.find((c) => c.hostId === selected.hostId) : found[0];
-        } catch (probeError) {
-          if (nativeErrorCode(probeError) === "LOCAL_NETWORK_DENIED") throw probeError;
-        }
-        if (!match && selected && !typedIp) {
-          setSelected(null);
-          throw new Error("الجهاز المختار ما عاد يستجيب. شغّل PS5، فعّل اللعب عن بُعد، وتأكد إن الآيفون على نفس شبكة Wi-Fi، ثم ابحث مرة ثانية.");
-        }
-        setSelected(match ?? null);
-        setStep(3);
+        // The PS5 itself verifies the PIN and account during Chiaki registration;
+        // success is shown only when it accepts them.
+        const result = await registerConsole({ ip, pin, accountId: normalizeAccountId(accountId) ?? "" });
+        if (!result.registered) throw new Error("registration-failed");
+        setPin("");
+        setAccountId("");
+        onComplete(result.ip, true);
       } catch (e) {
-        setError(nativeErrorCode(e) === "LOCAL_NETWORK_DENIED" ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية." : e instanceof Error && /[\u0600-\u06FF]/.test(e.message) ? e.message : "تعذّر الاتصال بالبلايستيشن. تحقق من الشبكة وصلاحية الشبكة المحلية.");
+        const code = nativeErrorCode(e);
+        setError(
+          code === "LOCAL_NETWORK_DENIED"
+            ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية."
+            : code === "NO_WIFI"
+              ? "وصّل الآيفون بنفس شبكة Wi-Fi اللي عليها PS5."
+              : code === "KEYCHAIN_FAILED"
+                ? "قبل PS5 الربط، لكن تعذّر حفظ المفاتيح على الآيفون. أعد المحاولة."
+                : `رفض PS5 الربط على ${ip}. تأكد إن شاشة «إقران الجهاز» ما زالت ظاهرة والرقم لم تنتهِ مدته، وإن معرّف الحساب هو نفس الحساب المسجّل على الجهاز.`,
+        );
       } finally {
         setBusy(false);
       }
       return;
     }
-    if (step === 3 && native) {
-      setBusy(true);
-      setError("");
-      try {
-        const result = await registerConsole({ ip, pin, accountId: accountId.trim() });
-        if (!result.registered) throw new Error("registration-failed");
-        setPin("");
-        setAccountId("");
-        onComplete(result.ip, true);
-      } catch {
-        setError(
-          "لم ينجح تسجيل البلايستيشن. تحقق من رقم الإقران الحالي ومعرّف الحساب وإعدادات اللعب عن بُعد والشبكة.",
-        );
-      } finally {
-        setBusy(false);
-      }
-    } else {
-      setError("");
-      setStep(step + 1);
-    }
+    setError("");
+    setStep(step + 1);
   };
-  const titles = [
-    "وش نوع جهازك؟",
-    "اختر جهازك",
-    "اكتب رقم الإقران",
-  ];
+  const titles = ["وش نوع جهازك؟", "اكتب رقم الإقران", "ربط الجهاز"];
   const valid =
     step === 1
       ? device === "ps5"
       : step === 2
-        ? consoleAddress.safeParse(ip).success
+        ? pairingPin.safeParse(pin).success && (!native || normalizeAccountId(accountId) !== null)
         : step === 3
-          ? pairingPin.safeParse(pin).success &&
-            (!native || accountIdSchema.safeParse(accountId).success)
+          ? consoleAddress.safeParse(ip).success
           : false;
 
   return (
@@ -253,6 +236,75 @@ export function PairingWizard({
       )}
       {step === 2 && (
         <div className="space-y-5">
+          <div className="phone-card p-4 text-sm leading-8">
+            <Monitor className="mb-3 size-6 text-phone-primary" />
+            في البلايستيشن: الإعدادات ← النظام ← اللعب عن بُعد ← إقران الجهاز{" "}
+            <span dir="ltr">(Pair Device)</span>
+          </div>
+          <label className="block text-sm">
+            رقم الإقران (8 أرقام)
+            <input
+              autoFocus
+              aria-label="رقم إقران البلايستيشن"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+              placeholder="00000000"
+              inputMode="numeric"
+              autoComplete="off"
+              dir="ltr"
+              className="phone-input mt-3 text-center text-2xl"
+            />
+          </label>
+          {native && (
+            <label className="block text-sm">
+              معرّف حساب PSN الرقمي
+              <input
+                aria-label="معرّف حساب PSN"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                dir="ltr"
+                className="phone-input mt-3"
+              />
+              <span className="mt-2 block text-xs leading-6 text-phone-muted">
+                رقم الحساب (أرقام فقط) أو صيغة Base64، وليس اسم المستخدم مثل AMMAR67M ولا كلمة المرور.
+                البلايستيشن يرفض الإقران بدونه. لا يُحفظ في التطبيق.{" "}
+                <a
+                  href="https://psn.flipscreen.games/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-phone-primary underline"
+                >
+                  اعرف رقم حسابك من اسم المستخدم
+                </a>
+              </span>
+            </label>
+          )}
+          <p className="text-sm leading-7 text-phone-muted">
+            {native
+              ? "يُرسل الرقم ومعرّف الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
+              : inApp
+                ? "إضافة PS5 غير محمّلة في هذه النسخة، لذلك لا يُرسل هذا الرقم. أدخله في تطبيق PS Remote Play الرسمي."
+                : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}
+          </p>
+          <Button
+            asChild
+            variant="outline"
+            className="w-full border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
+          >
+            <a
+              href="https://apps.apple.com/app/ps-remote-play/id1436192460"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink /> فتح PS Remote Play
+            </a>
+          </Button>
+        </div>
+      )}
+      {step === 3 && (
+        <div className="space-y-5">
           <div className="flex justify-center py-3">
             <ConsoleArt large />
           </div>
@@ -286,7 +338,7 @@ export function PairingWizard({
                 </p>
               )}
               <label className="block text-sm">
-                عنوان IP للبلايستيشن
+                {autoDiscovery ? "بديل: عنوان IP للبلايستيشن" : "عنوان IP للبلايستيشن"}
                 <div className="mt-2 flex gap-2">
                   <input
                     aria-label="عنوان IP للبلايستيشن"
@@ -342,72 +394,11 @@ export function PairingWizard({
           )}
           <p className="text-xs leading-6 text-phone-muted">
             {native
-              ? "يظهر الجهاز فقط إذا رد PS5 فعلياً على الآيفون. الربط يحتاج رقم الإقران الرسمي من الجهاز في الخطوة التالية."
+              ? "يتعرّف التطبيق على PS5 تلقائياً، وإذا ما ضبط اكتب عنوانه. الربط ينجح فقط إذا قبل PS5 رقم الإقران فعلاً."
               : inApp
                 ? "تطبيق الآيفون يعمل، لكن الاتصال بـ PS5 يحتاج نسخة فيها إضافة PS5."
                 : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
           </p>
-        </div>
-      )}
-      {step === 3 && (
-        <div className="space-y-5">
-          <div className="phone-card p-4 text-sm leading-8">
-            <Monitor className="mb-3 size-6 text-phone-primary" />
-            في البلايستيشن: الإعدادات ← النظام ← اللعب عن بُعد ← إقران الجهاز{" "}
-            <span dir="ltr">(Pair Device)</span>
-          </div>
-          <label className="block text-sm">
-            رقم الإقران (8 أرقام)
-            <input
-              autoFocus
-              aria-label="رقم إقران البلايستيشن"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
-              placeholder="00000000"
-              inputMode="numeric"
-              autoComplete="off"
-              dir="ltr"
-              className="phone-input mt-3 text-center text-2xl"
-            />
-          </label>
-          {native && (
-            <label className="block text-sm">
-              معرّف حساب PSN (Base64)
-              <input
-                aria-label="معرّف حساب PSN"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-                dir="ltr"
-                className="phone-input mt-3"
-              />
-              <span className="mt-2 block text-xs leading-6 text-phone-muted">
-                معرّف الحساب الرقمي المرمّز إلى Base64 (8 بايت)، وليس اسم المستخدم أو كلمة المرور.
-                لا يُحفظ في التطبيق.
-              </span>
-            </label>
-          )}
-          <p className="text-sm leading-7 text-phone-muted">
-            {native
-              ? "يُرسل الرقم ومعرّف الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
-              : inApp
-                ? "إضافة PS5 غير محمّلة في هذه النسخة، لذلك لا يُرسل هذا الرقم. أدخله في تطبيق PS Remote Play الرسمي."
-                : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}
-          </p>
-          <Button
-            asChild
-            variant="outline"
-            className="w-full border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
-          >
-            <a
-              href="https://apps.apple.com/app/ps-remote-play/id1436192460"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink /> فتح PS Remote Play
-            </a>
-          </Button>
         </div>
       )}
       <div className="mt-auto pt-8">
@@ -422,7 +413,7 @@ export function PairingWizard({
           disabled={busy || (step >= 2 && !native)}
           onClick={() => void advance()}
         >
-          {["التالي", "اتصل", "اربط"][step - 1]}{" "}
+          {["التالي", "التالي", "اربط"][step - 1]}{" "}
           {busy ? <Loader2 className="animate-spin" /> : <ArrowLeft />}
         </Button>
         <p className="mt-3 text-center text-[11px] text-phone-muted">

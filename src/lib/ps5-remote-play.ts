@@ -35,6 +35,25 @@ export const accountIdSchema = z
   .string()
   .trim()
   .regex(/^[A-Za-z0-9+/]{11}=$/, "Use the base64-encoded eight-byte PSN account ID");
+/**
+ * PS5 needs the numeric PSN account ID (not the online ID/username). Accept it
+ * as base64 (8 bytes) or as the decimal user ID, converted little-endian like Chiaki.
+ */
+export function normalizeAccountId(raw: string): string | null {
+  const value = raw.trim();
+  if (accountIdSchema.safeParse(value).success) return value;
+  if (!/^\d{1,20}$/.test(value)) return null;
+  const id = BigInt(value);
+  if (id === 0n || id > 0xffffffffffffffffn) return null;
+  const bytes = new Uint8Array(8);
+  for (let i = 0; i < 8; i++) bytes[i] = Number((id >> BigInt(8 * i)) & 0xffn);
+  return btoa(String.fromCharCode(...bytes));
+}
+/** Looks like a PSN online ID (username), which PS5 pairing cannot use. */
+export function looksLikeOnlineId(raw: string) {
+  const v = raw.trim();
+  return /^[A-Za-z][A-Za-z0-9_-]{2,15}$/.test(v) && normalizeAccountId(v) === null;
+}
 export const registrationInput = z.object({
   ip: z.lazy(() => privateIPv4),
   pin: pairingPin,

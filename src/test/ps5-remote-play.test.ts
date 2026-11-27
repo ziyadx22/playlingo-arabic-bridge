@@ -44,3 +44,17 @@ describe("Manual PS5 address", () => {
     await expect(probeConsole("192.168.1.20")).rejects.toThrow("NATIVE_IOS_REQUIRED");
   });
 });
+
+import { normalizeAccountId, looksLikeOnlineId } from "@/lib/ps5-remote-play";
+describe("PSN account ID input", () => {
+  it("converts a decimal user ID to little-endian base64", () => {
+    expect(normalizeAccountId("578437695752307201")).toBe("AQIDBAUGBwg=");
+  });
+  it("keeps a valid base64 ID", () => {
+    expect(normalizeAccountId("AQIDBAUGBwg=")).toBe("AQIDBAUGBwg=");
+  });
+  it("rejects an online ID (username)", () => {
+    expect(normalizeAccountId("AMMAR67M")).toBeNull();
+    expect(looksLikeOnlineId("AMMAR67M")).toBe(true);
+  });
+});
