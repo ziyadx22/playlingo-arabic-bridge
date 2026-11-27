@@ -5,9 +5,9 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
+  Gamepad2,
   Monitor,
   RefreshCw,
-  Wifi,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -29,8 +29,6 @@ import {
 
 const PLUGIN_MISSING =
   "أنت داخل تطبيق MZGTA على الآيفون، لكن إضافة PS5 غير محمّلة في هذه النسخة. ثبّت آخر نسخة من التطبيق ثم أعد المحاولة.";
-const NO_AUTO_DISCOVERY =
-  "البحث التلقائي يحتاج صلاحية Multicast من Apple وهي غير مفعّلة في هذه النسخة. اكتب عنوان IP الخاص بالبلايستيشن يدوياً.";
 
 export function PairingWizard({
   onClose,
@@ -54,6 +52,7 @@ export function PairingWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [guide, setGuide] = useState(0);
+  const [showManual, setShowManual] = useState(false);
   const [paired, setPaired] = useState<{ ip: string; nickname: string } | null>(null);
   useEffect(() => {
     const available = nativePS5Available();
@@ -62,7 +61,10 @@ export function PairingWizard({
     setBridge(nativeBridgeStatus());
     if (available)
       getCapabilities()
-        .then((caps) => setAutoDiscovery(caps.autoDiscovery))
+        .then((caps) => {
+          setAutoDiscovery(caps.autoDiscovery);
+          if (!caps.autoDiscovery) setShowManual(true);
+        })
         .catch(() => setAutoDiscovery(true));
   }, []);
   useEffect(() => {
@@ -86,7 +88,7 @@ export function PairingWizard({
       setError(
         nativeErrorCode(e) === "LOCAL_NETWORK_DENIED"
           ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية."
-          : `ما فيه PS5 يرد على ${parsed.data}. تأكد إن الجهاز شغّال، واللعب عن بُعد مفعّل، والعنوان صحيح. إذا كانت شاشة «إقران الجهاز» ظاهرة على PS5 اضغط «التالي» وأدخل رقم الإقران.`,
+          : `ما فيه PS5 يرد على ${parsed.data}. تأكد إن الجهاز شغّال، واللعب عن بُعد مفعّل، والعنوان صحيح. إذا كانت شاشة «إقران الجهاز» ظاهرة على PS5 اضغط «اتصل» وأدخل رقم الإقران.`,
       );
     } finally {
       setBusy(false);
@@ -99,11 +101,14 @@ export function PairingWizard({
       const found = (await discoverConsoles()).consoles.filter((item) => item.type === "PS5");
       setConsoles(found);
       if (found.length === 1) setSelected(found[0] ?? null);
-      if (!found.length) setError("ما لقينا PS5 تلقائياً. اكتب عنوان IP الخاص بالجهاز كبديل بالأسفل.");
+      if (!found.length) {
+        setShowManual(true);
+        setError("ما لقينا PS5 تلقائياً. اكتب عنوان البلايستيشن.");
+      }
     } catch (e) {
       if (nativeErrorCode(e) === "MULTICAST_UNAVAILABLE") {
         setAutoDiscovery(false);
-        setError(NO_AUTO_DISCOVERY);
+        setShowManual(true);
       } else {
         setError(
           "تعذّر البحث التلقائي. اسمح بالشبكة المحلية وتأكد من Wi-Fi، أو اكتب عنوان IP الخاص بالبلايستيشن يدوياً.",
@@ -295,101 +300,103 @@ export function PairingWizard({
         </>
       )}
       {step === 2 && (
-        <div className="space-y-5">
-          <div className="flex justify-center py-3">
-            <ConsoleArt large />
-          </div>
-          <p role="status" dir="ltr" className="phone-card px-4 py-2 text-xs text-phone-muted">
-            {bridge === "active" && "Native Bridge: Active ✅"}
-            {bridge === "native-no-plugin" && "Native Bridge: PS5RemotePlay plugin missing ⚠️"}
-            {bridge === "browser" && "Native Bridge: Not available (web browser)"}
-          </p>
-          {bridge === "native-no-plugin" && (
-            <p role="status" className="phone-card p-4 text-sm leading-7">
-              {PLUGIN_MISSING}
+        <div className="space-y-4">
+          <p className="text-sm text-phone-muted">البلايستيشن اللي على نفس الشبكة.</p>
+          {bridge !== "active" && (
+            <p role="status" className="phone-card p-4 text-xs leading-6 text-phone-muted">
+              {bridge === "native-no-plugin"
+                ? PLUGIN_MISSING
+                : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
             </p>
           )}
-          <div className="flex items-center gap-2 text-sm text-phone-primary">
-            <Wifi className="size-4" /> نفس شبكة Wi-Fi
-          </div>
           {native && (
             <>
-              {autoDiscovery ? (
-                <Button
-                  variant="phone"
-                  className="w-full"
-                  disabled={busy}
+              {consoles.map((console) => {
+                const active = selected?.hostId === console.hostId;
+                return (
+                  <button
+                    key={console.hostId}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setSelected(console);
+                      setError("");
+                    }}
+                    className={`flex w-full items-center gap-4 rounded-3xl border-2 bg-phone-surface p-4 text-start transition-colors ${active ? "border-phone-primary" : "border-phone-border"}`}
+                  >
+                    <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-phone-primary/80 text-phone-foreground">
+                      <Gamepad2 className="size-6" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-base font-semibold" dir="ltr">
+                        {console.hostName}
+                      </span>
+                      <span className="mt-1 block text-sm text-phone-muted" dir="ltr">
+                        {console.ip}
+                        {console.status === "standby" ? " · وضع الراحة" : ""}
+                      </span>
+                    </span>
+                    {active ? (
+                      <CheckCircle2 className="size-7 shrink-0 fill-phone-primary text-phone-surface" />
+                    ) : (
+                      <span className="size-7 shrink-0 rounded-full border-2 border-phone-border" />
+                    )}
+                  </button>
+                );
+              })}
+              {busy && !consoles.length && (
+                <div className="flex items-center justify-center gap-2 py-6 text-sm text-phone-muted">
+                  <Loader2 className="size-4 animate-spin" /> ندوّر على البلايستيشن…
+                </div>
+              )}
+              {autoDiscovery && !busy && (
+                <button
+                  type="button"
                   onClick={() => void scan()}
+                  className="mx-auto flex items-center gap-2 text-sm text-phone-primary underline underline-offset-4"
                 >
-                  {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} البحث عن أجهزة PS5
-                </Button>
-              ) : (
-                <p role="status" className="phone-card p-4 text-xs leading-6 text-phone-muted">
-                  {NO_AUTO_DISCOVERY}
+                  <RefreshCw className="size-4" /> ابحث مرة ثانية
+                </button>
+              )}
+              {!autoDiscovery && !consoles.length && (
+                <p role="status" className="text-xs leading-6 text-phone-muted">
+                  البحث التلقائي غير متاح في هذه النسخة، اكتب عنوان البلايستيشن.
                 </p>
               )}
-              <label className="block text-sm">
-                {autoDiscovery ? "بديل: عنوان IP للبلايستيشن" : "عنوان IP للبلايستيشن"}
-                <div className="mt-2 flex gap-2">
-                  <input
-                    aria-label="عنوان IP للبلايستيشن"
-                    value={manualIp}
-                    onChange={(e) => setManualIp(e.target.value.replace(/[^0-9.]/g, "").slice(0, 15))}
-                    onKeyDown={(e) => e.key === "Enter" && void findByAddress()}
-                    placeholder="192.168.0.192"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    dir="ltr"
-                    className="phone-input flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    className="h-auto border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
-                    disabled={busy || !manualIp}
-                    onClick={() => void findByAddress()}
-                  >
-                    تحقّق
-                  </Button>
-                </div>
-                <span className="mt-2 block text-xs leading-6 text-phone-muted">
-                  تلقاه في PS5: الإعدادات ← الشبكة ← حالة الاتصال ← عرض حالة الاتصال.
-                </span>
-              </label>
-              {consoles.map((console) => (
-                <Button
-                  key={console.hostId}
-                  variant="outline"
-                  className={`h-auto w-full justify-between py-3 ${selected?.hostId === console.hostId ? "border-phone-primary" : "border-phone-border"}`}
-                  aria-pressed={selected?.hostId === console.hostId}
-                  onClick={() => {
-                    setSelected(console);
-                    setError("");
-                  }}
-                >
-                  <span dir="ltr">
-                    {console.hostName}
-                    <br />
-                    <span className="text-xs text-phone-muted">{console.ip}</span>
+              {showManual && (
+                <label className="block text-sm">
+                  عنوان البلايستيشن
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      aria-label="عنوان IP للبلايستيشن"
+                      value={manualIp}
+                      onChange={(e) => {
+                        setManualIp(e.target.value.replace(/[^0-9.]/g, "").slice(0, 15));
+                        setSelected(null);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && void findByAddress()}
+                      placeholder="192.168.0.192"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      dir="ltr"
+                      className="phone-input flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-auto border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
+                      disabled={busy || !manualIp}
+                      onClick={() => void findByAddress()}
+                    >
+                      تحقّق
+                    </Button>
+                  </div>
+                  <span className="mt-2 block text-xs leading-6 text-phone-muted">
+                    تلقاه في PS5: الإعدادات ← الشبكة ← حالة الاتصال ← عرض حالة الاتصال.
                   </span>
-                  <span className="text-xs text-phone-primary">
-                    {console.status === "standby" ? "وضع الراحة" : "جاهز"}
-                  </span>
-                </Button>
-              ))}
-              {!busy && !consoles.length && (
-                <p className="text-xs text-phone-muted">
-                  شغّل PS5 وفعّل اللعب عن بُعد، ثم ابحث أو اكتب عنوان IP.
-                </p>
+                </label>
               )}
             </>
           )}
-          <p className="text-xs leading-6 text-phone-muted">
-            {native
-              ? "يتعرّف التطبيق على PS5 تلقائياً، وإذا ما ضبط اكتب عنوانه. الربط ينجح فقط إذا قبل PS5 رقم الإقران فعلاً."
-              : inApp
-                ? "تطبيق الآيفون يعمل، لكن الاتصال بـ PS5 يحتاج نسخة فيها إضافة PS5."
-                : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
-          </p>
         </div>
       )}
       {step === 3 && (
@@ -436,6 +443,15 @@ export function PairingWizard({
         </div>
       )}
       <div className="mt-auto pt-8">
+        {step === 2 && native && !showManual && (
+          <button
+            type="button"
+            onClick={() => setShowManual(true)}
+            className="mx-auto mb-4 block text-sm text-phone-primary underline underline-offset-4"
+          >
+            ما لقيت جهازي؟ أدخل العنوان
+          </button>
+        )}
         {error && (
           <p role="alert" className="mb-3 text-xs leading-6 text-destructive">
             {error}
@@ -447,7 +463,7 @@ export function PairingWizard({
           disabled={busy || (step >= 2 && !native)}
           onClick={() => void advance()}
         >
-          {["التالي", "التالي", "اربط"][step - 1]}{" "}
+          {["التالي", "اتصل", "اربط"][step - 1]}{" "}
           {busy ? <Loader2 className="animate-spin" /> : <ArrowLeft />}
         </Button>
         <p className="mt-3 text-center text-[11px] text-phone-muted">
