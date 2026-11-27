@@ -375,7 +375,7 @@ export function PairingWizard({
               />
               <span className="mt-2 block text-xs leading-6 text-phone-muted">
                 معرّف الحساب الرقمي المرمّز إلى Base64 (8 بايت)، وليس اسم المستخدم أو كلمة المرور.
-                لا يُحفظ في المتصفح.
+                لا يُحفظ في التطبيق.
               </span>
             </label>
           )}

@@ -30,6 +30,8 @@ import { translateHybrid } from "@/lib/smart-offline";
 import { gamingDictionary } from "@/data/gamingDictionary";
 import { changeRoi, type Roi } from "./roi";
 import { translateForApp } from "@/lib/native-runtime";
+import { runningInIOSApp } from "@/lib/ps5-remote-play";
+import { useInIOSApp } from "@/lib/use-in-ios-app";
 
 function Slider({
   label,
@@ -118,6 +120,7 @@ export function PhoneView({
   onLeave: () => void;
   onRefresh: () => void;
 }) {
+  const inApp = useInIOSApp();
   const translate = useServerFn(translateLine);
   const [active, setActive] = useState(false);
   const [running, setRunning] = useState(false);
@@ -242,7 +245,9 @@ export function PhoneView({
       setErr(
         mode === "screen"
           ? "تعذّرت مشاركة الشاشة. استخدم الكاميرا أو الصق النص."
-          : "تعذّر فتح الكاميرا — اسمح بالوصول من إعدادات المتصفح",
+          : runningInIOSApp()
+            ? "تعذّر فتح الكاميرا — اسمح لـ MZGTA بالكاميرا من إعدادات الآيفون"
+            : "تعذّر فتح الكاميرا — اسمح بالوصول من إعدادات المتصفح",
       );
     }
   };
@@ -494,7 +499,9 @@ export function PhoneView({
                     ? capture === "camera"
                       ? "الكاميرا المباشرة"
                       : "مشاركة الشاشة"
-                    : "لا يوجد بث PS5 مباشر في المتصفح"}
+                    : inApp
+                      ? "الكاميرا متوقفة · لقراءة PS Remote Play استخدم التقاط الشاشة"
+                      : "لا يوجد بث PS5 مباشر في المتصفح"}
                 </span>
                 <Button
                   variant="ghost"
@@ -674,9 +681,9 @@ export function PhoneView({
                 PS Remote Play · ملاحظات الاتصال
               </summary>
               <p className="mt-3">
-                شغّل الترجمة الإنجليزية في اللعبة ووجّه الكاميرا نحو التلفزيون. الآيفون لا يتيح
-                التقاط شاشة تطبيق آخر من المتصفح، ولا يتيح Split View. مشاركة الشاشة تتطلب متصفحاً
-                داعماً على الكمبيوتر.
+                {inApp
+                  ? "شغّل الترجمة الإنجليزية في اللعبة. في تطبيق MZGTA على الآيفون اقرأ شاشة PS Remote Play عبر «ابدأ التقاط الشاشة»، أو وجّه الكاميرا نحو التلفزيون."
+                  : "شغّل الترجمة الإنجليزية في اللعبة ووجّه الكاميرا نحو التلفزيون. الآيفون لا يتيح التقاط شاشة تطبيق آخر من المتصفح، ولا يتيح Split View. مشاركة الشاشة تتطلب متصفحاً داعماً على الكمبيوتر."}
               </p>
               <p className="mt-2">
                 MZGTA يعرض الترجمة في متصفح التلفزيون، وليس فوق مدخل HDMI. ترجمة MyMemory مجانية بحد

@@ -1,3 +1,4 @@
+import { runningInIOSApp } from "@/lib/ps5-remote-play";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Rec = {
@@ -40,7 +41,11 @@ export function useSpeech(onFinal: (text: string) => void) {
     };
     const C = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!C) {
-      setErr("المتصفح لا يدعم تحويل الكلام لنص — استخدم Safari أو Chrome");
+      setErr(
+        runningInIOSApp()
+          ? "تحويل الكلام لنص غير متاح داخل تطبيق MZGTA على الآيفون حالياً — استخدم الكاميرا أو اكتب النص"
+          : "المتصفح لا يدعم تحويل الكلام لنص — استخدم Safari أو Chrome",
+      );
       return;
     }
     const r = new C();

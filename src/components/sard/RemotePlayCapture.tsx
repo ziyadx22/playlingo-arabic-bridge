@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ExternalLink, Loader2, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { startScreenCapture, type RegionPreset } from "@/lib/remote-play-capture";
+import { useInIOSApp } from "@/lib/use-in-ios-app";
 import { CAPTURE_LABEL, useCaptureStatus } from "@/lib/use-capture-status";
 
 const STEPS = [
@@ -17,6 +18,7 @@ export function RemotePlayCapture({ room, paired }: { room: string | null; paire
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const { native, status, state } = useCaptureStatus();
+  const inApp = useInIOSApp();
   const start = async () => {
     setError("");
     if (!room || !paired) return setError("اربط التلفزيون أولاً حتى تصله الترجمة.");
@@ -81,7 +83,9 @@ export function RemotePlayCapture({ room, paired }: { room: string | null; paire
         </div>
       ) : (
         <p className="mt-4 rounded-xl border border-phone-border p-3 text-[11px] leading-relaxed text-phone-muted">
-          قراءة شاشة تطبيق آخر تحتاج تطبيق MZGTA المثبت على الآيفون. المتصفح لا يقدر يشوف شاشة PS Remote Play؛ هنا استخدم الكاميرا على التلفزيون.
+          {inApp
+            ? "أنت داخل تطبيق MZGTA على الآيفون، لكن إضافة التقاط الشاشة غير محمّلة في هذه النسخة. ثبّت آخر نسخة، وحتى ذلك استخدم الكاميرا على التلفزيون."
+            : "قراءة شاشة تطبيق آخر تحتاج تطبيق MZGTA المثبت على الآيفون. المتصفح لا يقدر يشوف شاشة PS Remote Play؛ هنا استخدم الكاميرا على التلفزيون."}
         </p>
       )}
       {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
