@@ -18,7 +18,8 @@ interface PS5RemotePlay {
   registerConsole(input: {
     ip: string;
     pin: string;
-    accountId: string;
+    /** Optional; the native plugin uses eight zero bytes when omitted. */
+    accountId?: string;
   }): Promise<ConsoleRegistration>;
   getRegistration(input: { ip: string }): Promise<ConsoleRegistration>;
   removeRegistration(input: { ip: string }): Promise<{ removed: boolean }>;
@@ -57,7 +58,7 @@ export function looksLikeOnlineId(raw: string) {
 export const registrationInput = z.object({
   ip: z.lazy(() => privateIPv4),
   pin: pairingPin,
-  accountId: accountIdSchema,
+  accountId: accountIdSchema.optional(),
 });
 function requireNative() {
   if (!nativePS5Available()) throw new Error("NATIVE_IOS_REQUIRED");

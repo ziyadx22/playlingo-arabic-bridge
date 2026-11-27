@@ -58,3 +58,13 @@ describe("PSN account ID input", () => {
     expect(looksLikeOnlineId("AMMAR67M")).toBe(true);
   });
 });
+
+import { registrationInput as regInput } from "@/lib/ps5-remote-play";
+describe("pairing without PSN account", () => {
+  it("accepts only IP and 8-digit PIN", () => {
+    expect(regInput.safeParse({ ip: "192.168.0.192", pin: "79631234" }).success).toBe(true);
+  });
+  it("still rejects a 7-digit PIN", () => {
+    expect(regInput.safeParse({ ip: "192.168.0.192", pin: "7963123" }).success).toBe(false);
+  });
+});

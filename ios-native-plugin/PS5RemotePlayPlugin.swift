@@ -132,8 +132,16 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         return [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: ip]
     }
     @objc func registerConsole(_ call: CAPPluginCall) {
-        guard let ip = call.getString("ip"), validIP(ip), let pin = call.getString("pin"), pin.range(of: "^[0-9]{8}$", options: .regularExpression) != nil, let account = call.getString("accountId"), let accountData = Data(base64Encoded: account), accountData.count == 8 else {
-            call.reject("Enter a private IPv4 address, eight-digit PIN, and base64 eight-byte PSN account ID", "INVALID_INPUT"); return
+        guard let ip = call.getString("ip"), validIP(ip), let pin = call.getString("pin"), pin.range(of: "^[0-9]{8}$", options: .regularExpression) != nil else {
+            call.reject("Enter a private IPv4 address and eight-digit PIN", "INVALID_INPUT"); return
+        }
+        // accountId is optional: default to eight zero bytes when absent.
+        var accountData = Data(count: 8)
+        if let account = call.getString("accountId"), !account.isEmpty {
+            guard let decoded = Data(base64Encoded: account), decoded.count == 8 else {
+                call.reject("accountId must be a base64 eight-byte PSN account ID", "INVALID_INPUT"); return
+            }
+            accountData = decoded
         }
         queue.async {
             do {
@@ -146,7 +154,7 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
                 if status == errSecDuplicateItem { status = SecItemUpdate(self.query(ip) as CFDictionary, [kSecValueData as String: data] as CFDictionary) }
                 guard status == errSecSuccess else { call.reject("Registration succeeded but Keychain storage failed", "KEYCHAIN_FAILED"); return }
                 call.resolve(["registered": true, "ip": ip, "nickname": record["nickname"] as? String ?? "PS5"])
-            } catch { call.reject("PS5 registration failed. Check the current PIN, account ID, Remote Play settings and Wi-Fi.", "REGISTRATION_FAILED") }
+            } catch { call.reject("PS5 registration failed. Check the current PIN, Remote Play settings and Wi-Fi.", "REGISTRATION_FAILED") }
         }
     }
     @objc func getRegistration(_ call: CAPPluginCall) {
