@@ -208,7 +208,7 @@ export function PhoneFlow({
               onConsoleRegistration(registered);
               void saveLocal("console-setup", ip).catch(() => setNotice("تعذّر حفظ إعداد الجهاز."));
               setScreen("tabs");
-              setTab("home");
+              setTab("devices");
             }}
           />
         ) : screen === "style" ? (
@@ -269,6 +269,14 @@ export function PhoneFlow({
                       </p>
                       <h3 className="text-lg font-semibold">البلايستيشن</h3>
                       <p className="mt-2 flex items-center gap-1.5 text-xs text-phone-muted">
+                        <span
+                          className={`size-1.5 rounded-full ${consoleRegistered ? "bg-phone-primary" : "bg-phone-muted"}`}
+                        />{" "}
+                        <span className={consoleRegistered ? "text-phone-primary" : ""}>
+                          {consoleRegistered ? "مقترن ✅" : "غير مقترن"}
+                        </span>
+                      </p>
+                      <p className="mt-1 flex items-center gap-1.5 text-xs text-phone-muted">
                         <span
                           className={`size-1.5 rounded-full ${capture.state === "live" ? "bg-phone-primary" : "bg-phone-muted"}`}
                         />{" "}

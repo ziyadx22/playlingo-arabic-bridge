@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
   ExternalLink,
   Loader2,
   Monitor,
@@ -55,6 +56,7 @@ export function PairingWizard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [paired, setPaired] = useState<{ ip: string; nickname: string } | null>(null);
   useEffect(() => {
     const available = nativePS5Available();
     setNative(available);
@@ -118,9 +120,9 @@ export function PairingWizard({
       setError(
         step === 2
           ? native && looksLikeOnlineId(accountId)
-            ? `«${accountId.trim()}» هو اسم المستخدم في PSN، والبلايستيشن يحتاج معرّف الحساب الرقمي (أرقام فقط أو Base64).`
+            ? `«${accountId.trim()}» هو اسم المستخدم، والبلايستيشن يحتاج رقم الحساب (أرقام فقط).`
             : native
-              ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الرقمي."
+              ? "أدخل رقم الإقران المكوّن من 8 أرقام ورقم الحساب (أرقام فقط)."
               : "أدخل رقم الإقران المكوّن من 8 أرقام."
           : step === 3
             ? "ما تعرّفنا على PS5 تلقائياً. اكتب عنوان IP الخاص به كبديل."
@@ -146,7 +148,7 @@ export function PairingWizard({
         if (!result.registered) throw new Error("registration-failed");
         setPin("");
         setAccountId("");
-        onComplete(result.ip, true);
+        setPaired({ ip: result.ip, nickname: result.nickname ?? "PS5" });
       } catch (e) {
         const code = nativeErrorCode(e);
         setError(
@@ -156,7 +158,7 @@ export function PairingWizard({
               ? "وصّل الآيفون بنفس شبكة Wi-Fi اللي عليها PS5."
               : code === "KEYCHAIN_FAILED"
                 ? "قبل PS5 الربط، لكن تعذّر حفظ المفاتيح على الآيفون. أعد المحاولة."
-                : `رفض PS5 الربط على ${ip}. تأكد إن شاشة «إقران الجهاز» ما زالت ظاهرة والرقم لم تنتهِ مدته، وإن معرّف الحساب هو نفس الحساب المسجّل على الجهاز.`,
+                : `رفض PS5 الربط على ${ip}. تأكد إن شاشة «إقران الجهاز» ما زالت ظاهرة والرقم لم تنتهِ مدته، وإن رقم الحساب لنفس الحساب المسجّل على الجهاز.`,
         );
       } finally {
         setBusy(false);
@@ -175,6 +177,29 @@ export function PairingWizard({
         : step === 3
           ? consoleAddress.safeParse(ip).success
           : false;
+
+  if (paired)
+    return (
+      <div className="flex min-h-[610px] flex-col">
+        <div className="flex flex-1 flex-col items-center justify-center text-center">
+          <CheckCircle2 className="mb-5 size-14 text-phone-primary" />
+          <h2 className="text-2xl font-semibold">تم إقران البلايستيشن ✅</h2>
+          <p className="mt-3 text-sm leading-7 text-phone-muted">
+            قبل جهاز <span dir="ltr">{paired.nickname}</span> رقم الإقران، وحُفظ الربط على هذا الآيفون.
+          </p>
+          <p dir="ltr" className="mt-1 text-xs text-phone-muted">
+            {paired.ip}
+          </p>
+          <div className="phone-card mt-6 w-full p-4 text-start text-xs leading-6 text-phone-muted">
+            الخطوة الجاية: اضغط «ابدأ التقاط الشاشة» في صفحة أجهزتي، اختر «MZGTA Subtitles»، ثم افتح PS Remote Play
+            والعب. الترجمة تنقرأ من الشاشة وتطلع على التلفزيون.
+          </div>
+        </div>
+        <Button variant="phone" className="mt-8 h-12 w-full" onClick={() => onComplete(paired.ip, true)}>
+          التالي: التقاط الشاشة <ArrowLeft />
+        </Button>
+      </div>
+    );
 
   return (
     <div className="flex min-h-[610px] flex-col">
@@ -257,9 +282,9 @@ export function PairingWizard({
           </label>
           {native && (
             <label className="block text-sm">
-              معرّف حساب PSN الرقمي
+              رقم الحساب (مطلوب من البلايستيشن)
               <input
-                aria-label="معرّف حساب PSN"
+                aria-label="رقم الحساب"
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 autoComplete="off"
@@ -268,8 +293,8 @@ export function PairingWizard({
                 className="phone-input mt-3"
               />
               <span className="mt-2 block text-xs leading-6 text-phone-muted">
-                رقم الحساب (أرقام فقط) أو صيغة Base64، وليس اسم المستخدم مثل AMMAR67M ولا كلمة المرور.
-                البلايستيشن يرفض الإقران بدونه. لا يُحفظ في التطبيق.{" "}
+                أرقام فقط، وليس اسم المستخدم مثل AMMAR67M ولا كلمة المرور. ما فيه تسجيل دخول،
+                لكن البلايستيشن يرفض الإقران بدون هذا الرقم. لا يُحفظ في التطبيق.{" "}
                 <a
                   href="https://psn.flipscreen.games/"
                   target="_blank"
@@ -283,7 +308,7 @@ export function PairingWizard({
           )}
           <p className="text-sm leading-7 text-phone-muted">
             {native
-              ? "يُرسل الرقم ومعرّف الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
+              ? "يُرسل الرقم ورقم الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
               : inApp
                 ? "إضافة PS5 غير محمّلة في هذه النسخة، لذلك لا يُرسل هذا الرقم. أدخله في تطبيق PS Remote Play الرسمي."
                 : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}

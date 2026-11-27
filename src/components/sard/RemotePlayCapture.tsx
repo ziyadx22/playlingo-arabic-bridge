@@ -6,11 +6,8 @@ import { useInIOSApp } from "@/lib/use-in-ios-app";
 import { CAPTURE_LABEL, useCaptureStatus } from "@/lib/use-capture-status";
 
 const STEPS = [
-  { id: "account", title: "أنشئ حساب PSN ثانوي", body: "من موقع سوني الرسمي. لا تكتب كلمة مرور PSN داخل MZGTA أبداً.", link: "https://my.account.sony.com/create-account/" },
-  { id: "share", title: "فعّل مشاركة الجهاز على حسابك الأساسي", body: "في PS5: الإعدادات ← المستخدمون والحسابات ← أخرى ← مشاركة الجهاز واللعب دون اتصال ← تمكين، ليلعب الحساب الثانوي ألعابك." },
-  { id: "user", title: "أضف الحساب الثانوي كمستخدم على PS5", body: "من شاشة التبديل بين المستخدمين ← إضافة مستخدم ← تسجيل الدخول." },
   { id: "remote", title: "فعّل التشغيل عن بُعد", body: "الإعدادات ← النظام ← التشغيل عن بُعد ← تمكين. وفي توفير الطاقة: ابقَ متصلاً بالإنترنت + تمكين تشغيل PS5 من الشبكة." },
-  { id: "app", title: "ادخل بالحساب الثانوي في تطبيق PS Remote Play", body: "على الآيفون، وأكمل الربط داخل تطبيق سوني الرسمي.", link: "https://apps.apple.com/app/ps-remote-play/id1436192460" },
+  { id: "app", title: "افتح تطبيق PS Remote Play", body: "على نفس الآيفون، واختر جهازك PS5 داخل تطبيق سوني الرسمي.", link: "https://apps.apple.com/app/ps-remote-play/id1436192460" },
 ] as const;
 
 export function RemotePlayCapture({ room, paired }: { room: string | null; paired: boolean }) {
