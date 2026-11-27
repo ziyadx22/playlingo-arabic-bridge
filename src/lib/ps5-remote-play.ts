@@ -19,7 +19,7 @@ interface PS5RemotePlay {
     ip: string;
     pin: string;
     /** Optional; the native plugin uses eight zero bytes when omitted. */
-    accountId?: string;
+    accountId?: string | undefined;
   }): Promise<ConsoleRegistration>;
   getRegistration(input: { ip: string }): Promise<ConsoleRegistration>;
   removeRegistration(input: { ip: string }): Promise<{ removed: boolean }>;
