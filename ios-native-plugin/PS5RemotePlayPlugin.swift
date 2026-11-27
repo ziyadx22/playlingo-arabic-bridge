@@ -10,7 +10,9 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "PS5RemotePlayPlugin"
     public let jsName = "PS5RemotePlay"
     public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "getCapabilities", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discoverConsoles", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "probeConsole", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "registerConsole", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getRegistration", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "removeRegistration", returnType: CAPPluginReturnPromise)
@@ -18,31 +20,52 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
     private let queue = DispatchQueue(label: "com.mzgta.remoteplay", qos: .userInitiated)
     private let service = "com.mzgta.remoteplay.keys"
 
+    /// Info.plist MZGTAPS5Discovery=false marks builds signed without Apple's multicast
+    /// entitlement. Broadcast discovery is unavailable there, but unicast UDP to a
+    /// typed console address and Chiaki registration only need Local Network access.
+    private var autoDiscovery: Bool {
+        Bundle.main.object(forInfoDictionaryKey: "MZGTAPS5Discovery") as? Bool != false
+    }
+    @objc func getCapabilities(_ call: CAPPluginCall) {
+        call.resolve(["autoDiscovery": autoDiscovery, "manualAddress": true, "registration": true])
+    }
     @objc func discoverConsoles(_ call: CAPPluginCall) {
-        // Network.framework checks the path; BSD UDP is required for SO_BROADCAST.
+        guard autoDiscovery else {
+            call.reject("Automatic discovery needs Apple's multicast entitlement. Enter the PS5 IP address instead.", "MULTICAST_UNAVAILABLE"); return
+        }
+        withWiFi(call) { try self.search(destinations: try self.broadcastAddresses(), broadcast: true, duration: 4) }
+    }
+    /// Sends the PS5 search packet straight to one address (no broadcast) and returns
+    /// the console only when it actually answers with a PS5/PS4 discovery response.
+    @objc func probeConsole(_ call: CAPPluginCall) {
+        guard let ip = call.getString("ip"), validIP(ip) else { call.reject("Enter a private IPv4 address", "INVALID_INPUT"); return }
+        var address = in_addr(); _ = inet_pton(AF_INET, ip, &address)
+        withWiFi(call, notFound: "No PlayStation answered at \(ip). Turn on the PS5, enable Remote Play and use the same Wi-Fi.") {
+            try self.search(destinations: [address.s_addr], broadcast: false, duration: 3)
+        }
+    }
+    private func withWiFi(_ call: CAPPluginCall, notFound: String? = nil, _ work: @escaping () throws -> [[String: String]]) {
+        // Network.framework checks the path; BSD UDP is used for discovery packets.
         let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
         monitor.pathUpdateHandler = { [weak self] path in
             monitor.cancel()
             guard let self = self else { return }
             guard path.status == .satisfied else { call.reject("Connect your iPhone to Wi-Fi", "NO_WIFI"); return }
             self.queue.async {
-                do { call.resolve(["consoles": try self.discover()]) }
-                catch { call.reject("Local network discovery failed. Check Local Network permission and multicast entitlement.", "DISCOVERY_FAILED") }
+                do {
+                    let consoles = try work()
+                    if let notFound = notFound, consoles.isEmpty { call.reject(notFound, "CONSOLE_NOT_FOUND"); return }
+                    call.resolve(["consoles": consoles])
+                } catch let error as NSError where error.code == 6 {
+                    call.reject("Could not send to the local network. Allow Local Network access for MZGTA in iPhone Settings.", "LOCAL_NETWORK_DENIED")
+                } catch {
+                    call.reject("Local network search failed. Check Wi-Fi and Local Network permission.", "DISCOVERY_FAILED")
+                }
             }
         }
         monitor.start(queue: queue)
     }
-    private func discover() throws -> [[String: String]] {
-        let fd = Darwin.socket(AF_INET, SOCK_DGRAM, Int32(IPPROTO_UDP))
-        guard fd >= 0 else { throw NSError(domain: "MZGTA", code: 1) }
-        defer { Darwin.close(fd) }
-        var enabled: Int32 = 1
-        guard setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enabled, socklen_t(MemoryLayout<Int32>.size)) == 0 else { throw NSError(domain: "MZGTA", code: 2) }
-        var timeout = timeval(tv_sec: 0, tv_usec: 200_000)
-        _ = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-        var local = sockaddr_in(); local.sin_len = UInt8(MemoryLayout<sockaddr_in>.size); local.sin_family = sa_family_t(AF_INET); local.sin_addr.s_addr = INADDR_ANY
-        let bound = withUnsafePointer(to: &local) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
-        guard bound == 0 else { throw NSError(domain: "MZGTA", code: 3) }
+    private func broadcastAddresses() throws -> [UInt32] {
         var interfaces: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&interfaces) == 0 else { throw NSError(domain: "MZGTA", code: 4) }
         defer { freeifaddrs(interfaces) }
@@ -55,14 +78,29 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
             broadcasts.insert(ip | ~netmask)
         }
         guard !broadcasts.isEmpty else { throw NSError(domain: "MZGTA", code: 5) }
+        return Array(broadcasts)
+    }
+    private func search(destinations: [UInt32], broadcast: Bool, duration: TimeInterval) throws -> [[String: String]] {
+        let fd = Darwin.socket(AF_INET, SOCK_DGRAM, Int32(IPPROTO_UDP))
+        guard fd >= 0 else { throw NSError(domain: "MZGTA", code: 1) }
+        defer { Darwin.close(fd) }
+        if broadcast {
+            var enabled: Int32 = 1
+            guard setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enabled, socklen_t(MemoryLayout<Int32>.size)) == 0 else { throw NSError(domain: "MZGTA", code: 2) }
+        }
+        var timeout = timeval(tv_sec: 0, tv_usec: 200_000)
+        _ = setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+        var local = sockaddr_in(); local.sin_len = UInt8(MemoryLayout<sockaddr_in>.size); local.sin_family = sa_family_t(AF_INET); local.sin_addr.s_addr = INADDR_ANY
+        let bound = withUnsafePointer(to: &local) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        guard bound == 0 else { throw NSError(domain: "MZGTA", code: 3) }
         let ps5 = Data("SRCH * HTTP/1.1\r\ndevice-discovery-protocol-version:00030010\r\n\r\n".utf8)
         let ps4 = Data("SRCH * HTTP/1.1\r\ndevice-discovery-protocol-version:00020020\r\n\r\n".utf8)
-        let end = Date().addingTimeInterval(4); var nextSend = Date.distantPast; var hosts = [String: [String: String]](); var sent = false
+        let end = Date().addingTimeInterval(duration); var nextSend = Date.distantPast; var hosts = [String: [String: String]](); var sent = false
         while Date() < end {
             if Date() >= nextSend {
-                for broadcast in broadcasts {
+                for target in destinations {
                     for (port, packet) in [(UInt16(9302), ps5), (UInt16(987), ps4)] {
-                        var destination = sockaddr_in(); destination.sin_len = UInt8(MemoryLayout<sockaddr_in>.size); destination.sin_family = sa_family_t(AF_INET); destination.sin_port = port.bigEndian; destination.sin_addr.s_addr = broadcast
+                        var destination = sockaddr_in(); destination.sin_len = UInt8(MemoryLayout<sockaddr_in>.size); destination.sin_family = sa_family_t(AF_INET); destination.sin_port = port.bigEndian; destination.sin_addr.s_addr = target
                         let n = packet.withUnsafeBytes { bytes in withUnsafePointer(to: &destination) { address in address.withMemoryRebound(to: sockaddr.self, capacity: 1) { sendto(fd, bytes.baseAddress, bytes.count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } } }
                         if n > 0 { sent = true }
                     }

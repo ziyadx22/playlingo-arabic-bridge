@@ -120,8 +120,8 @@ workflows:
   # account and the Codemagic group "appstore_credentials" with
   # APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
   # APP_STORE_CONNECT_PRIVATE_KEY and CERTIFICATE_PRIVATE_KEY. Both App IDs
-  # need the App Group group.com.mzgta.app. Multicast (PS5 pairing) is only
-  # needed when MZGTA_MULTICAST is "1". Upload happens only after a
+  # need the App Group group.com.mzgta.app. Multicast is only needed for
+  # automatic PS5 search (MZGTA_MULTICAST "1"); manual-IP pairing works without it. Upload happens only after a
   # successful signed build (Codemagic publishing step).
   ios-testflight:
     name: MZGTA iPhone — signed TestFlight build
@@ -135,7 +135,7 @@ workflows:
       vars:
         MZGTA_NATIVE_VIEW: phone
         MZGTA_LOCAL_IOS: "1"
-        # "0" = no multicast entitlement, PS5 pairing hidden. Set to "1" after Apple approves multicast.
+        # "0" = no multicast entitlement: automatic PS5 search off, manual-IP pairing on. Set to "1" after Apple approves multicast.
         MZGTA_MULTICAST: "0"
     scripts:
       - *install_deps

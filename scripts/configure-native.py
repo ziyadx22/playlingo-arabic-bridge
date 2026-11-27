@@ -5,6 +5,7 @@ from pathlib import Path
 import plistlib
 import shutil
 import hashlib
+import json
 import re
 import xml.etree.ElementTree as ET
 
@@ -62,7 +63,7 @@ def configure_android(root):
 
 
 def multicast_enabled():
-    """MZGTA_MULTICAST=0 builds without Apple's multicast entitlement; PS5 pairing code stays but is not registered."""
+    """MZGTA_MULTICAST=0 builds without Apple's multicast entitlement: broadcast discovery is off, manual-IP pairing stays."""
     return os.environ.get("MZGTA_MULTICAST", "1") != "0"
 
 
@@ -75,9 +76,24 @@ def configure_ios(root):
     info["NSSpeechRecognitionUsageDescription"] = "MZGTA converts spoken game dialogue into text for translation."
     info["NSLocalNetworkUsageDescription"] = "MZGTA discovers your PlayStation on Wi-Fi and registers Remote Play using the pairing PIN you enter."
     info["NSBonjourServices"] = sorted(set(info.get("NSBonjourServices", []) + ["_ps5._udp", "_ps4._udp"]))
-    info["MZGTAPS5Pairing"] = multicast_enabled()
+    info.pop("MZGTAPS5Pairing", None)
+    info["MZGTAPS5Discovery"] = multicast_enabled()
     with path.open("wb") as file:
         plistlib.dump(info, file)
+
+
+PLUGIN_CLASSES = ["PS5RemotePlayPlugin", "ScreenCapturePlugin"]
+
+
+def register_plugin_classes(root):
+    """Capacitor auto-registers classes named in the bundled capacitor.config.json."""
+    path = root / "App/App/capacitor.config.json"
+    if not path.exists():
+        return
+    config = json.loads(path.read_text())
+    classes = config.get("packageClassList", [])
+    config["packageClassList"] = classes + [name for name in PLUGIN_CLASSES if name not in classes]
+    path.write_text(json.dumps(config, indent="\t") + "\n")
 
 
 def configure_ios_plugin(root):
@@ -121,7 +137,10 @@ def configure_ios_plugin(root):
     project.write_text(text)
     storyboard = root / "App/App/Base.lproj/Main.storyboard"
     xml = storyboard.read_text().replace('customClass="CAPBridgeViewController" customModule="Capacitor"', 'customClass="MZGTABridgeViewController" customModule="App" customModuleProvider="target"')
+    if 'customClass="MZGTABridgeViewController"' not in xml:
+        raise ValueError("Main.storyboard bridge view controller not found")
     storyboard.write_text(xml)
+    register_plugin_classes(root)
     with (root / "App/App/MZGTA.entitlements").open("wb") as file:
         entitlements = {"com.apple.security.application-groups": ["group.com.mzgta.app"]}
         if multicast_enabled():

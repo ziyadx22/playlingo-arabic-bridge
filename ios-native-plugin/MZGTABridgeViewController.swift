@@ -3,11 +3,15 @@ import Capacitor
 @objc(MZGTABridgeViewController)
 final class MZGTABridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
-        // Builds signed without Apple's multicast entitlement set MZGTAPS5Pairing=false;
-        // the pairing code stays compiled but is not exposed to the app.
-        if Bundle.main.object(forInfoDictionaryKey: "MZGTAPS5Pairing") as? Bool != false {
+        // configure-native.py also lists both classes in capacitor.config.json's
+        // packageClassList; register here only if that auto-registration missed them.
+        // PS5 pairing is always exposed: builds without the multicast entitlement
+        // only lose broadcast discovery (MZGTAPS5Discovery=false), not unicast pairing.
+        if bridge?.plugin(withName: "PS5RemotePlay") == nil {
             bridge?.registerPluginInstance(PS5RemotePlayPlugin())
         }
-        bridge?.registerPluginInstance(ScreenCapturePlugin())
+        if bridge?.plugin(withName: "MZGTACapture") == nil {
+            bridge?.registerPluginInstance(ScreenCapturePlugin())
+        }
     }
 }

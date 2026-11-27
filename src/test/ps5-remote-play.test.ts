@@ -36,3 +36,11 @@ describe("Native PS5 registration boundary", () => {
     ).rejects.toThrow("NATIVE_IOS_REQUIRED");
   });
 });
+describe("Manual PS5 address", () => {
+  it("accepts only private local IPv4 addresses typed by the user", async () => {
+    const { privateIPv4, probeConsole } = await import("@/lib/ps5-remote-play");
+    expect(privateIPv4.safeParse("192.168.1.20").success).toBe(true);
+    expect(privateIPv4.safeParse("8.8.8.8").success).toBe(false);
+    await expect(probeConsole("192.168.1.20")).rejects.toThrow("NATIVE_IOS_REQUIRED");
+  });
+});

@@ -132,8 +132,10 @@ file; an unsigned IPA cannot enable it. `NSLocalNetworkUsageDescription` is
 configured in Info.plist, and the first native discovery attempt requests local
 network access. Local Network permission and Apple's multicast entitlement are
 separate requirements. The `ios-testflight` workflow retains `MZGTA_MULTICAST=0`
-until Apple approves multicast; change it to `"1"` and regenerate App Store profiles
-with the approved capability to expose PS5 discovery and PIN registration. Keep
+until Apple approves multicast; the PS5 plugin is still registered and users type
+the console's IP (PS5: Settings → Network → View Connection Status). The app sends
+a unicast discovery packet to that address and pairs only if a PS5 answers. Change
+it to `"1"` and regenerate App Store profiles to add automatic broadcast search. Keep
 App Group `group.com.mzgta.app` enabled for both existing bundle IDs
 `com.mzgta.app` and `com.mzgta.app.MZGTABroadcast`. Codemagic still needs the
 `appstore_credentials` group with `APP_STORE_CONNECT_ISSUER_ID`,

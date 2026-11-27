@@ -3,7 +3,9 @@
 - [x] Prepare local Capacitor iOS packaging and native transport; preserve Android TV, dictionary, ReplayKit and sync (packaging/transport tests pass; real browser translation reaches TV).
 - [x] Verify local-network privacy description, pairing plugin registration and App Group preservation; keep TestFlight multicast off pending Apple approval.
 - [ ] Generate the new local iOS SPA and signed IPA in Codemagic, then verify native plugins on an iPhone — needs Apple credentials and macOS build runner.
-- [ ] Enable PS5 discovery in signed TestFlight only after Apple approves Multicast Networking and profiles are regenerated — user has not obtained approval.
+- [x] Always register the PS5 plugin in the iPhone app and allow manual-IP pairing when multicast is missing (tests and Swift parse pass).
+- [ ] Rebuild the iPhone app in Codemagic and confirm "Native Bridge: Active ✅" and manual-IP pairing on a real iPhone/PS5 — needs a new build and hardware.
+- [ ] Enable automatic PS5 discovery in signed TestFlight only after Apple approves Multicast Networking and profiles are regenerated — user has not obtained approval.
 
 - [x] Real QR + live TV↔iPhone sync + mic speech-to-text + camera OCR translation
 - [x] Rebrand to MZGTA ("MZGTA • TV OVERLAY") + MZGTA logo emblem

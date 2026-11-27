@@ -47,7 +47,8 @@ class NativeConfigurationTests(unittest.TestCase):
                 self.assertTrue(result[name])
             self.assertTrue(result["NSLocalNetworkUsageDescription"])
             self.assertEqual(result["NSBonjourServices"], ["_ps4._udp", "_ps5._udp"])
-            self.assertIs(result["MZGTAPS5Pairing"], True)
+            self.assertIs(result["MZGTAPS5Discovery"], True)
+            self.assertNotIn("MZGTAPS5Pairing", result)
 
     def test_ios_plugin_sources_are_compiled_and_registered_idempotently(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -59,7 +60,11 @@ class NativeConfigurationTests(unittest.TestCase):
                         destination = root / member.name.lstrip("./")
                         destination.parent.mkdir(parents=True, exist_ok=True)
                         destination.write_bytes(archive.extractfile(member).read())
+            config = root / "App/App/capacitor.config.json"
+            config.write_text('{"appId": "com.mzgta.app", "packageClassList": ["CAPAppPlugin"]}')
             native.configure_ios_plugin(root)
+            import json
+            self.assertEqual(json.loads(config.read_text())["packageClassList"], ["CAPAppPlugin", "PS5RemotePlayPlugin", "ScreenCapturePlugin"])
             project = root / "App/App.xcodeproj/project.pbxproj"
             first = project.read_text()
             native.configure_ios_plugin(root)
@@ -90,7 +95,7 @@ class NativeConfigurationTests(unittest.TestCase):
             self.assertNotIn("com.apple.developer.networking.multicast", entitlements)
             self.assertEqual(entitlements["com.apple.security.application-groups"], ["group.com.mzgta.app"])
             with (root / "App/App/Info.plist").open("rb") as file:
-                self.assertIs(plistlib.load(file)["MZGTAPS5Pairing"], False)
+                self.assertIs(plistlib.load(file)["MZGTAPS5Discovery"], False)
             self.assertIn("PS5RemotePlayPlugin.swift in Sources", (root / "App/App.xcodeproj/project.pbxproj").read_text())
             self.assertTrue((root / "App/MZGTABroadcast/SampleHandler.swift").exists())
 

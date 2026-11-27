@@ -16,15 +16,21 @@ import {
   accountIdSchema,
   discoverConsoles,
   nativePS5Available,
-  ps5PairingDisabledInBuild,
+  getCapabilities,
   nativeBridgeStatus,
+  nativeErrorCode,
+  privateIPv4,
+  probeConsole,
+  runningInIOSApp,
   type NativeBridgeStatus,
   registerConsole,
   type DiscoveredConsole,
 } from "@/lib/ps5-remote-play";
 
-const PAIRING_OFF =
-  "إقران PS5 غير متاح في هذا الإصدار. ترجمة الشاشة من PS Remote Play تعمل بشكل طبيعي.";
+const PLUGIN_MISSING =
+  "أنت داخل تطبيق MZGTA على الآيفون، لكن إضافة PS5 غير محمّلة في هذه النسخة. ثبّت آخر نسخة من التطبيق ثم أعد المحاولة.";
+const NO_AUTO_DISCOVERY =
+  "البحث التلقائي يحتاج صلاحية Multicast من Apple وهي غير مفعّلة في هذه النسخة. اكتب عنوان IP الخاص بالبلايستيشن يدوياً.";
 
 export function PairingWizard({
   onClose,
@@ -40,25 +46,62 @@ export function PairingWizard({
   const [pin, setPin] = useState("");
   const [native, setNative] = useState(false);
   const [bridge, setBridge] = useState<NativeBridgeStatus>("browser");
-  const [buildOff, setBuildOff] = useState(false);
+  const [inApp, setInApp] = useState(false);
+  const [autoDiscovery, setAutoDiscovery] = useState(true);
+  const [manualIp, setManualIp] = useState("");
   const [consoles, setConsoles] = useState<DiscoveredConsole[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [accountId, setAccountId] = useState("");
   useEffect(() => {
-    setNative(nativePS5Available());
-    setBuildOff(ps5PairingDisabledInBuild());
+    const available = nativePS5Available();
+    setNative(available);
+    setInApp(runningInIOSApp());
     setBridge(nativeBridgeStatus());
+    if (available)
+      getCapabilities()
+        .then((caps) => setAutoDiscovery(caps.autoDiscovery))
+        .catch(() => setAutoDiscovery(true));
   }, []);
+  const findByAddress = async () => {
+    const parsed = privateIPv4.safeParse(manualIp.trim());
+    if (!parsed.success) {
+      setError("اكتب عنوان IP محلي صحيح للبلايستيشن، مثل 192.168.1.20.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const found = (await probeConsole(parsed.data)).consoles.filter((c) => c.type === "PS5");
+      if (!found[0]) throw new Error("not-ps5");
+      setConsoles((list) => [...found, ...list.filter((c) => c.hostId !== found[0]?.hostId)]);
+      setSelected(found[0]);
+    } catch (e) {
+      setError(
+        nativeErrorCode(e) === "LOCAL_NETWORK_DENIED"
+          ? "اسمح لتطبيق MZGTA بالوصول للشبكة المحلية من إعدادات الآيفون ← الخصوصية ← الشبكة المحلية."
+          : `ما فيه PS5 يرد على ${parsed.data}. تأكد إن الجهاز شغّال، واللعب عن بُعد مفعّل، والعنوان صحيح (الإعدادات ← الشبكة ← عرض حالة الاتصال).`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
   const scan = async () => {
     setBusy(true);
     setError("");
     try {
-      setConsoles((await discoverConsoles()).consoles.filter((item) => item.type === "PS5"));
-    } catch {
-      setError(
-        "تعذّر البحث. اسمح بالشبكة المحلية، وتأكد من Wi-Fi وصلاحية البث المحلي في النسخة المثبتة.",
-      );
+      const found = (await discoverConsoles()).consoles.filter((item) => item.type === "PS5");
+      setConsoles(found);
+      if (!found.length) setError("ما لقينا PS5 تلقائياً. تقدر تكتب عنوان IP الخاص بالجهاز يدوياً بالأسفل.");
+    } catch (e) {
+      if (nativeErrorCode(e) === "MULTICAST_UNAVAILABLE") {
+        setAutoDiscovery(false);
+        setError(NO_AUTO_DISCOVERY);
+      } else {
+        setError(
+          "تعذّر البحث التلقائي. اسمح بالشبكة المحلية وتأكد من Wi-Fi، أو اكتب عنوان IP الخاص بالبلايستيشن يدوياً.",
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -67,7 +110,7 @@ export function PairingWizard({
     if (!valid) {
       setError(
         step === 2
-          ? "ابحث عن أجهزة PS5 واختر جهازك من القائمة."
+          ? "ابحث عن PS5 أو اكتب عنوان IP الخاص به، ثم اختر جهازك من القائمة."
           : step === 3
             ? native
               ? "أدخل رقم الإقران المكوّن من 8 أرقام ومعرّف حساب PSN الصحيح."
@@ -76,13 +119,11 @@ export function PairingWizard({
       );
       return;
     }
-    if (step === 2 && buildOff) {
-      setError(PAIRING_OFF);
-      return;
-    }
     if (step === 2 && !native) {
       setError(
-        "المتصفح لا يستطيع الاتصال بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون، والترجمة تتم بقراءة شاشة PS Remote Play.",
+        inApp
+          ? PLUGIN_MISSING
+          : "المتصفح لا يستطيع الاتصال بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون، والترجمة تتم بقراءة شاشة PS Remote Play.",
       );
       return;
     }
@@ -90,10 +131,9 @@ export function PairingWizard({
       setBusy(true);
       setError("");
       try {
-        // Re-run discovery so the chosen console is confirmed present right now.
-        // Discovery only identifies the console; pairing always needs the PIN.
-        const found = (await discoverConsoles()).consoles.filter((c) => c.type === "PS5");
-        setConsoles(found);
+        // Ask the chosen console directly (unicast, no multicast needed) so it is
+        // confirmed present right now. Pairing still always needs the PIN.
+        const found = (await probeConsole(ip)).consoles.filter((c) => c.type === "PS5");
         const match = found.find((c) => c.hostId === selected?.hostId);
         if (!match) {
           setSelected(null);
@@ -209,16 +249,12 @@ export function PairingWizard({
           </div>
           <p role="status" dir="ltr" className="phone-card px-4 py-2 text-xs text-phone-muted">
             {bridge === "active" && "Native Bridge: Active ✅"}
-            {bridge === "pairing-off" && "Native Bridge: Active ✅ (PS5 plugin off in this build)"}
             {bridge === "native-no-plugin" && "Native Bridge: PS5RemotePlay plugin missing ⚠️"}
             {bridge === "browser" && "Native Bridge: Not available (web browser)"}
           </p>
-          {buildOff && (
+          {bridge === "native-no-plugin" && (
             <p role="status" className="phone-card p-4 text-sm leading-7">
-              {PAIRING_OFF}
-              <span className="mt-1 block text-xs text-phone-muted" dir="ltr">
-                PS5 pairing not available in this version
-              </span>
+              {PLUGIN_MISSING}
             </p>
           )}
           <div className="flex items-center gap-2 text-sm text-phone-primary">
@@ -226,14 +262,47 @@ export function PairingWizard({
           </div>
           {native && (
             <>
-              <Button
-                variant="phone"
-                className="w-full"
-                disabled={busy}
-                onClick={() => void scan()}
-              >
-                {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} البحث عن أجهزة PS5
-              </Button>
+              {autoDiscovery ? (
+                <Button
+                  variant="phone"
+                  className="w-full"
+                  disabled={busy}
+                  onClick={() => void scan()}
+                >
+                  {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />} البحث عن أجهزة PS5
+                </Button>
+              ) : (
+                <p role="status" className="phone-card p-4 text-xs leading-6 text-phone-muted">
+                  {NO_AUTO_DISCOVERY}
+                </p>
+              )}
+              <label className="block text-sm">
+                عنوان IP للبلايستيشن
+                <div className="mt-2 flex gap-2">
+                  <input
+                    aria-label="عنوان IP للبلايستيشن"
+                    value={manualIp}
+                    onChange={(e) => setManualIp(e.target.value.replace(/[^0-9.]/g, "").slice(0, 15))}
+                    onKeyDown={(e) => e.key === "Enter" && void findByAddress()}
+                    placeholder="192.168.1.20"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    dir="ltr"
+                    className="phone-input flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    className="h-auto border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
+                    disabled={busy || !manualIp}
+                    onClick={() => void findByAddress()}
+                  >
+                    تحقّق
+                  </Button>
+                </div>
+                <span className="mt-2 block text-xs leading-6 text-phone-muted">
+                  تلقاه في PS5: الإعدادات ← الشبكة ← حالة الاتصال ← عرض حالة الاتصال.
+                </span>
+              </label>
               {consoles.map((console) => (
                 <Button
                   key={console.hostId}
@@ -257,15 +326,17 @@ export function PairingWizard({
               ))}
               {!busy && !consoles.length && (
                 <p className="text-xs text-phone-muted">
-                  شغّل PS5 وفعّل اللعب عن بُعد، ثم اضغط البحث.
+                  شغّل PS5 وفعّل اللعب عن بُعد، ثم ابحث أو اكتب عنوان IP.
                 </p>
               )}
             </>
           )}
           <p className="text-xs leading-6 text-phone-muted">
             {native
-              ? "البحث يحدد أجهزة PS5 في شبكتك فقط. الربط يحتاج رقم الإقران الرسمي من الجهاز في الخطوة التالية."
-              : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
+              ? "يظهر الجهاز فقط إذا رد PS5 فعلياً على الآيفون. الربط يحتاج رقم الإقران الرسمي من الجهاز في الخطوة التالية."
+              : inApp
+                ? "تطبيق الآيفون يعمل، لكن الاتصال بـ PS5 يحتاج نسخة فيها إضافة PS5."
+                : "المتصفح ما يقدر يبحث عن أجهزة الشبكة ولا يتصل بـ PS5. الربط بالرقم يعمل فقط في تطبيق MZGTA المثبت على الآيفون."}
           </p>
         </div>
       )}
@@ -311,7 +382,9 @@ export function PairingWizard({
           <p className="text-sm leading-7 text-phone-muted">
             {native
               ? "يُرسل الرقم ومعرّف الحساب إلى PS5 داخل الشبكة المحلية عبر محرك Chiaki. تُحفظ مفاتيح التسجيل في Keychain فقط. لا يبدأ بث الفيديو بعد التسجيل."
-              : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}
+              : inApp
+                ? "إضافة PS5 غير محمّلة في هذه النسخة، لذلك لا يُرسل هذا الرقم. أدخله في تطبيق PS Remote Play الرسمي."
+                : "أدخل الرقم في تطبيق PS Remote Play الرسمي لإتمام الربط. نسخة المتصفح لا تتصل بالبلايستيشن ولا ترسل هذا الرقم."}
           </p>
           <Button
             asChild
@@ -346,7 +419,9 @@ export function PairingWizard({
         <p className="mt-3 text-center text-[11px] text-phone-muted">
           {native
             ? "إقران PS5 بالرقم · الترجمة تُقرأ من شاشة PS Remote Play"
-            : "الاتصال بـ PS5 غير ممكن من المتصفح"}
+            : inApp
+              ? "تطبيق الآيفون · إضافة PS5 غير محمّلة في هذه النسخة"
+              : "الاتصال بـ PS5 غير ممكن من المتصفح"}
         </p>
       </div>
     </div>
