@@ -41,7 +41,7 @@ use the editor.
 - Download the independent licensed dictionary into version-keyed IndexedDB batches; expose ready metadata only after all entries commit and lazy-load its lookup map, keeping bulk vocabulary out of startup bundles.
 - Translate exact gaming phrases locally, prefer cloud for composed sentences online, and mark unknown offline tokens explicitly; never claim universal coverage or full Arabic grammar from dictionary substitution.
 - PS5 pairing accepts a console found by discovery or a user-typed private IP (unicast probe first; PS5s on the Link Device screen may not answer), but success is shown only after Chiaki registration with the 8-digit PIN succeeds and keys are stored in Keychain. Registration never implies an active stream.
-- Never persist console PINs/account IDs in browser storage or expose/log registration keys; save keys only in device-bound iOS Keychain after successful protocol validation.
+- Never persist console PINs/account IDs in browser storage or expose/log registration keys; the PSN account ID comes only from the official Sony OAuth page in a native WKWebView and lives in device-bound Keychain, which registerConsole uses by default — the app never sees the password.
 - Deduplicate session history by subtitle ID because reconnect handshakes replay the current subtitle.
 - iOS builds use TanStack SPA mode (MZGTA_LOCAL_IOS=1) and dist/native-ios without server.url; Android TV retains its online shell so its existing behavior stays unchanged.
 - Local iOS translation uses CapacitorHttp with the existing hosted public endpoint, and ReplayKit receives the hosted HTTPS origin; Worker code must never be packaged as native client assets.

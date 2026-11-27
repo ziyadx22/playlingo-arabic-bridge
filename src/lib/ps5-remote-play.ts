@@ -23,6 +23,10 @@ interface PS5RemotePlay {
   }): Promise<ConsoleRegistration>;
   getRegistration(input: { ip: string }): Promise<ConsoleRegistration>;
   removeRegistration(input: { ip: string }): Promise<{ removed: boolean }>;
+  /** Opens Sony's official login page; only the numeric account ID is kept, in Keychain. */
+  signInPSN(): Promise<{ signedIn: boolean; onlineId?: string }>;
+  getPSNAccount(): Promise<{ signedIn: boolean }>;
+  signOutPSN(): Promise<{ signedIn: boolean }>;
 }
 const plugin = registerPlugin<PS5RemotePlay>("PS5RemotePlay");
 export function nativePS5Available() {
@@ -105,4 +109,17 @@ export function nativeBridgeStatus(): NativeBridgeStatus {
   if (!cap?.isNativePlatform?.()) return "browser";
   if (nativePS5Available()) return "active";
   return "native-no-plugin";
+}
+
+export async function signInPSN() {
+  requireNative();
+  return plugin.signInPSN();
+}
+export async function getPSNAccount() {
+  requireNative();
+  return plugin.getPSNAccount();
+}
+export async function signOutPSN() {
+  requireNative();
+  return plugin.signOutPSN();
 }

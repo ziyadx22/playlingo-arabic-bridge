@@ -24,6 +24,9 @@ import {
   runningInIOSApp,
   type NativeBridgeStatus,
   registerConsole,
+  signInPSN,
+  getPSNAccount,
+  signOutPSN,
   type DiscoveredConsole,
 } from "@/lib/ps5-remote-play";
 
@@ -53,12 +56,14 @@ export function PairingWizard({
   const [error, setError] = useState("");
   const [guide, setGuide] = useState(0);
   const [showManual, setShowManual] = useState(false);
+  const [psn, setPsn] = useState<{ signedIn: boolean; onlineId?: string }>({ signedIn: false });
   const [paired, setPaired] = useState<{ ip: string; nickname: string } | null>(null);
   useEffect(() => {
     const available = nativePS5Available();
     setNative(available);
     setInApp(runningInIOSApp());
     setBridge(nativeBridgeStatus());
+    if (available) getPSNAccount().then(setPsn).catch(() => undefined);
     if (available)
       getCapabilities()
         .then((caps) => {
@@ -137,12 +142,17 @@ export function PairingWizard({
       );
       return;
     }
+    if (step === 3 && !psn.signedIn) {
+      setError("سجّل دخول بحساب PlayStation أولاً، عشان يقبل PS5 الربط (يحل خطأ CE-110032-7).");
+      return;
+    }
     if (step === 3) {
       setBusy(true);
       setError("");
       try {
         // The PS5 itself verifies the PIN during Chiaki registration;
-        // success is shown only when it accepts it. No account ID is sent.
+        // success is shown only when it accepts it. The native plugin sends the
+        // account ID saved in Keychain by the official Sony sign-in.
         const result = await registerConsole({ ip, pin });
         if (!result.registered) throw new Error("registration-failed");
         setPin("");
@@ -406,6 +416,45 @@ export function PairingWizard({
             في البلايستيشن: الإعدادات ← النظام ← اللعب عن بُعد ← إقران الجهاز{" "}
             <span dir="ltr">(Pair Device)</span>
           </div>
+          {native && (
+            <div className="phone-card space-y-3 p-4 text-sm leading-7">
+              {psn.signedIn ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-phone-primary">
+                    <CheckCircle2 className="size-4" /> تم تسجيل الدخول بحساب PlayStation
+                    {psn.onlineId ? <span dir="ltr">({psn.onlineId})</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs text-phone-muted underline"
+                    onClick={() => void signOutPSN().then(setPsn)}
+                  >
+                    تغيير الحساب
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p>سجّل دخول بحسابك في صفحة Sony الرسمية. كلمة المرور ما تمر على التطبيق، ونحفظ رقم الحساب فقط على الآيفون.</p>
+                  <Button
+                    variant="outline"
+                    className="w-full border-phone-border bg-phone-surface text-phone-foreground hover:bg-phone-border"
+                    disabled={busy}
+                    onClick={async () => {
+                      setError("");
+                      try {
+                        setPsn(await signInPSN());
+                      } catch (e) {
+                        if (nativeErrorCode(e) !== "PSN_CANCELLED")
+                          setError("تعذّر تسجيل الدخول بحساب PlayStation. تأكد من الإنترنت وأعد المحاولة.");
+                      }
+                    }}
+                  >
+                    <Gamepad2 /> سجّل دخول بحساب PlayStation
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           <label className="block text-sm">
             رقم الإقران (8 أرقام)
             <input

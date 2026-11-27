@@ -4,6 +4,8 @@ import Capacitor
 import Network
 import Security
 import Darwin
+import WebKit
+import UIKit
 
 @objc(PS5RemotePlayPlugin)
 public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -15,7 +17,10 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "probeConsole", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "registerConsole", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "getRegistration", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "removeRegistration", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "removeRegistration", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "signInPSN", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getPSNAccount", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "signOutPSN", returnType: CAPPluginReturnPromise)
     ]
     private let queue = DispatchQueue(label: "com.mzgta.remoteplay", qos: .userInitiated)
     private let service = "com.mzgta.remoteplay.keys"
@@ -135,8 +140,8 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let ip = call.getString("ip"), validIP(ip), let pin = call.getString("pin"), pin.range(of: "^[0-9]{8}$", options: .regularExpression) != nil else {
             call.reject("Enter a private IPv4 address and eight-digit PIN", "INVALID_INPUT"); return
         }
-        // accountId is optional: default to eight zero bytes when absent.
-        var accountData = Data(count: 8)
+        // accountId is optional: use the Sony-signed-in account from Keychain, else eight zero bytes.
+        var accountData = storedAccountId() ?? Data(count: 8)
         if let account = call.getString("accountId"), !account.isEmpty {
             guard let decoded = Data(base64Encoded: account), decoded.count == 8 else {
                 call.reject("accountId must be a base64 eight-byte PSN account ID", "INVALID_INPUT"); return
@@ -175,5 +180,129 @@ public final class PS5RemotePlayPlugin: CAPPlugin, CAPBridgedPlugin {
         let status = SecItemDelete(query(ip) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { call.reject("Could not delete registration", "KEYCHAIN_FAILED"); return }
         call.resolve(["removed": true])
+    }
+
+    // MARK: - Official Sony sign-in (same OAuth flow PS Remote Play / Chiaki use).
+    // The password is typed only on Sony's page; the app keeps just the numeric account ID.
+    private static let psnClientId = "ba495a24-818c-472b-b12d-ff231c1b5745"
+    private static let psnClientSecret = "mvaiZkRsAsI1IBkY"
+    private static let psnRedirect = "https://remoteplay.dl.playstation.net/remoteplay/redirect"
+    private static let psnTokenURL = "https://auth.api.sonyentertainmentnetwork.com/2.0/oauth/token"
+    private var accountQuery: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: "psn-account-id"]
+    }
+    private func storedAccountId() -> Data? {
+        var item = accountQuery; item[kSecReturnData as String] = true
+        var value: CFTypeRef?
+        guard SecItemCopyMatching(item as CFDictionary, &value) == errSecSuccess, let data = value as? Data, data.count == 8 else { return nil }
+        return data
+    }
+    @objc func getPSNAccount(_ call: CAPPluginCall) {
+        call.resolve(["signedIn": storedAccountId() != nil])
+    }
+    @objc func signOutPSN(_ call: CAPPluginCall) {
+        SecItemDelete(accountQuery as CFDictionary)
+        call.resolve(["signedIn": false])
+    }
+    @objc func signInPSN(_ call: CAPPluginCall) {
+        var components = URLComponents(string: "https://auth.api.sonyentertainmentnetwork.com/2.0/oauth/authorize")!
+        components.queryItems = [
+            URLQueryItem(name: "service_entity", value: "urn:service-entity:psn"),
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: Self.psnClientId),
+            URLQueryItem(name: "redirect_uri", value: Self.psnRedirect),
+            URLQueryItem(name: "scope", value: "psn:clientapp"),
+            URLQueryItem(name: "request_locale", value: "ar"),
+            URLQueryItem(name: "ui", value: "pr"),
+            URLQueryItem(name: "service_logo", value: "ps"),
+            URLQueryItem(name: "layout_type", value: "popup"),
+            URLQueryItem(name: "smcid", value: "remoteplay"),
+            URLQueryItem(name: "prompt", value: "always"),
+            URLQueryItem(name: "PlatformPrivacyWs1", value: "minimal")
+        ]
+        guard let url = components.url else { call.reject("Bad sign-in URL", "PSN_FAILED"); return }
+        DispatchQueue.main.async {
+            let controller = PSNLoginViewController(url: url, redirect: Self.psnRedirect) { [weak self] code in
+                guard let self = self else { return }
+                guard let code = code else { call.reject("Sign-in cancelled", "PSN_CANCELLED"); return }
+                self.exchange(code: code, call: call)
+            }
+            let nav = UINavigationController(rootViewController: controller)
+            nav.modalPresentationStyle = .fullScreen
+            self.bridge?.viewController?.present(nav, animated: true)
+        }
+    }
+    private func exchange(code: String, call: CAPPluginCall) {
+        let basic = Data("\(Self.psnClientId):\(Self.psnClientSecret)".utf8).base64EncodedString()
+        var request = URLRequest(url: URL(string: Self.psnTokenURL)!)
+        request.httpMethod = "POST"
+        request.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        var form = URLComponents()
+        form.queryItems = [URLQueryItem(name: "grant_type", value: "authorization_code"), URLQueryItem(name: "code", value: code),
+                           URLQueryItem(name: "redirect_uri", value: Self.psnRedirect), URLQueryItem(name: "token_format", value: "jwt")]
+        request.httpBody = form.percentEncodedQuery?.data(using: .utf8)
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data, let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let token = json["access_token"] as? String,
+                  let infoURL = URL(string: "\(Self.psnTokenURL)/\(token)") else {
+                call.reject("Sony did not accept the sign-in", "PSN_FAILED"); return
+            }
+            var info = URLRequest(url: infoURL)
+            info.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
+            URLSession.shared.dataTask(with: info) { data, _, _ in
+                guard let data = data, let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+                    call.reject("Could not read the PSN account", "PSN_FAILED"); return
+                }
+                let raw = json["user_id"]
+                let idText = (raw as? String) ?? (raw as? NSNumber)?.stringValue ?? ""
+                guard let id = UInt64(idText), id != 0 else { call.reject("Could not read the PSN account", "PSN_FAILED"); return }
+                var little = id.littleEndian
+                let bytes = Data(bytes: &little, count: 8)
+                SecItemDelete(self.accountQuery as CFDictionary)
+                var item = self.accountQuery; item[kSecValueData as String] = bytes
+                item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+                guard SecItemAdd(item as CFDictionary, nil) == errSecSuccess else { call.reject("Keychain storage failed", "KEYCHAIN_FAILED"); return }
+                call.resolve(["signedIn": true, "onlineId": json["online_id"] as? String ?? ""])
+            }.resume()
+        }.resume()
+    }
+}
+
+/// Shows Sony's own login page and stops at the Remote Play redirect to read the one-time code.
+final class PSNLoginViewController: UIViewController, WKNavigationDelegate {
+    private let url: URL
+    private let redirect: String
+    private var completion: ((String?) -> Void)?
+    init(url: URL, redirect: String, completion: @escaping (String?) -> Void) {
+        self.url = url; self.redirect = redirect; self.completion = completion
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "PlayStation"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(cancel))
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        let web = WKWebView(frame: view.bounds, configuration: configuration)
+        web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        web.navigationDelegate = self
+        view.addSubview(web)
+        web.load(URLRequest(url: url))
+    }
+    @objc private func cancel() { finish(nil) }
+    private func finish(_ code: String?) {
+        let done = completion; completion = nil
+        dismiss(animated: true) { done?(code) }
+    }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let target = navigationAction.request.url, target.absoluteString.hasPrefix(redirect) {
+            decisionHandler(.cancel)
+            let code = URLComponents(url: target, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value
+            finish(code)
+            return
+        }
+        decisionHandler(.allow)
     }
 }
